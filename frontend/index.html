@@ -44,6 +44,9 @@
         <label for="slot-time">Available time slot</label>
         <input type="datetime-local" id="slot-time" />
 
+        <label for="booking-notes">Additional notes</label>
+        <textarea id="booking-notes" rows="4" placeholder="Tell us anything we should know about your vehicle or service needs."></textarea>
+
         <div class="btn-row">
           <button id="back-to-1">Back</button>
           <button id="to-step-3">Next</button>
@@ -76,6 +79,16 @@
       <div id="history-list"></div>
     </section>
   </main>
+
+  <div id="booking-details-modal" class="modal-backdrop" hidden>
+    <section class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <h2 id="modal-title">Booking details</h2>
+        <button id="close-modal" class="modal-close" type="button" aria-label="Close booking details">&times;</button>
+      </div>
+      <div id="modal-content"></div>
+    </section>
+  </div>
 
   <script src="app.js"></script>
 </body>
