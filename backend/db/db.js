@@ -117,7 +117,7 @@ function seedIfEmpty() {
     'INSERT INTO vehicles (customer_id, plate, make, model, wof_expiry) VALUES (?, ?, ?, ?, ?)'
   );
   const v1 = insertVehicle.run(c1, 'ABC123', 'Toyota', 'Corolla', '2026-09-10').lastInsertRowid;
-  const v2 = insertVehicle.run(c2, 'XYZ789', 'Mazda', '3', '2026-12-01').lastInsertRowid;
+  const v2 = insertVehicle.run(c1, 'XYZ789', 'Mazda', '3', '2026-12-01').lastInsertRowid;
 
   const insertDiag = db.prepare(
     `INSERT INTO diagnostic_entries (vehicle_id, fault_description, severity, status, created_at)
