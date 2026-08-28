@@ -1,5 +1,6 @@
 const express = require('express');
 const { getDb } = require('../db/db');
+const { requireAccount } = require('../auth');
 
 const router = express.Router();
 
@@ -14,21 +15,47 @@ function generateConfirmationRef() {
  * GET /api/bookings/customer/:customerId
  * Lists all bookings across a customer's vehicles (used for the cancel-a-booking screen).
  */
-router.get('/customer/:customerId', (req, res) => {
+router.get('/customer/:customerId', requireAccount, (req, res) => {
   const db = getDb();
   const { customerId } = req.params;
 
+  if (req.account.role === 'customer' && String(req.account.customerId) !== String(customerId)) {
+    return res.status(403).json({ error: 'You can only view your own bookings.' });
+  }
+
+  const query = req.account.role === 'customer'
+    ? `SELECT bookings.*, vehicles.plate, vehicles.make, vehicles.model
+       FROM bookings
+       JOIN vehicles ON vehicles.id = bookings.vehicle_id
+       WHERE vehicles.customer_id = ?
+       ORDER BY datetime(bookings.slot_start) DESC`
+    : `SELECT bookings.*, vehicles.plate, vehicles.make, vehicles.model
+       FROM bookings
+       JOIN vehicles ON vehicles.id = bookings.vehicle_id
+       ORDER BY datetime(bookings.slot_start) DESC`;
+  const bookings = req.account.role === 'customer'
+    ? db.prepare(query).all(customerId)
+    : db.prepare(query).all();
+
+  return res.json({ bookings });
+});
+
+router.get('/all', requireAccount, (req, res) => {
+  if (req.account.role === 'customer') {
+    return res.status(403).json({ error: 'Only mechanic and manager accounts can view all bookings.' });
+  }
+
+  const db = getDb();
   const bookings = db
     .prepare(
       `SELECT bookings.*, vehicles.plate, vehicles.make, vehicles.model
        FROM bookings
        JOIN vehicles ON vehicles.id = bookings.vehicle_id
-       WHERE vehicles.customer_id = ?
        ORDER BY datetime(bookings.slot_start) DESC`
     )
-    .all(customerId);
+    .all();
 
-  res.json({ bookings });
+  return res.json({ bookings });
 });
 
 /**
@@ -46,9 +73,13 @@ router.get('/customer/:customerId', (req, res) => {
  *    not just an application-level check (a plain SELECT-then-INSERT would
  *    have a race condition; the DB constraint closes that gap).
  */
-router.post('/', (req, res) => {
+router.post('/', requireAccount, (req, res) => {
   const db = getDb();
   const { vehicleId, serviceType, slotStart, notes = '' } = req.body;
+
+  if (req.account.role !== 'customer') {
+    return res.status(403).json({ error: 'Only customer accounts can create bookings.' });
+  }
 
   if (!vehicleId || !serviceType || !slotStart) {
     return res.status(400).json({ error: 'vehicleId, serviceType and slotStart are all required.' });
@@ -62,16 +93,19 @@ router.post('/', (req, res) => {
   if (!vehicle) {
     return res.status(400).json({ error: 'Selected vehicle does not exist.' });
   }
+  if (vehicle.customer_id !== req.account.customerId) {
+    return res.status(403).json({ error: 'You can only book a vehicle belonging to your account.' });
+  }
 
   const confirmationRef = generateConfirmationRef();
 
   try {
     const result = db
       .prepare(
-          `INSERT INTO bookings (vehicle_id, service_type, slot_start, notes, status, confirmation_ref)
-          VALUES (?, ?, ?, ?, 'confirmed', ?)`
+            `INSERT INTO bookings (vehicle_id, service_type, slot_start, notes, status, confirmation_ref, booked_by)
+            VALUES (?, ?, ?, ?, 'confirmed', ?, ?)`
       )
-        .run(vehicleId, serviceType, slotStart, String(notes).trim(), confirmationRef);
+          .run(vehicleId, serviceType, slotStart, String(notes).trim(), confirmationRef, req.account.username);
 
     const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(result.lastInsertRowid);
     return res.status(201).json({ booking });
@@ -99,7 +133,7 @@ router.post('/', (req, res) => {
  *  - A cancellation request for a booking that does not exist, or has
  *    already been cancelled, is rejected with a stated reason.
  */
-router.post('/:id/cancel', (req, res) => {
+router.post('/:id/cancel', requireAccount, (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
@@ -110,6 +144,10 @@ router.post('/:id/cancel', (req, res) => {
   }
   if (booking.status === 'cancelled') {
     return res.status(400).json({ error: 'This booking has already been cancelled.' });
+  }
+
+  if (req.account.role === 'customer' && booking.booked_by !== req.account.username) {
+    return res.status(403).json({ error: 'You can only cancel your own bookings.' });
   }
 
   const slotTime = new Date(booking.slot_start.replace(' ', 'T'));

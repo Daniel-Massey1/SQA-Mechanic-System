@@ -4,7 +4,26 @@ const API_BASE = '/api';
 // Mocked "logged in customer" for the prototype. Replace with real auth
 // (session/JWT) once the auth/role module exists - everything else here
 // should keep working as long as CURRENT_CUSTOMER_ID is set correctly.
-const CURRENT_CUSTOMER_ID = 1;
+const DEFAULT_CUSTOMER_ID = 1;
+
+const MOCK_ACCOUNTS = [
+  { username: 'customer1', password: '123', role: 'customer', customerId: 1 },
+  { username: 'customer2', password: '123', role: 'customer', customerId: 2 },
+  { username: 'mechanic1', password: '123', role: 'mechanic' },
+  { username: 'manager1', password: '123', role: 'manager' },
+];
+
+let loggedInAccount = null;
+
+function requestHeaders(includeJson = false) {
+  const headers = includeJson ? { 'Content-Type': 'application/json' } : {};
+  if (loggedInAccount) headers['X-Mock-Username'] = loggedInAccount.username;
+  return headers;
+}
+
+function getCurrentCustomerId() {
+  return loggedInAccount?.customerId || DEFAULT_CUSTOMER_ID;
+}
 
 // --- State for the booking flow ---------------------------------------
 const bookingState = {
@@ -13,6 +32,67 @@ const bookingState = {
   slotStart: null,
   notes: '',
 };
+
+// --- Mock login --------------------------------------------------------
+const accountButton = document.getElementById('account-button');
+const accountName = document.getElementById('account-name');
+const loginModal = document.getElementById('login-modal');
+const loginForm = document.getElementById('login-form');
+const loginError = document.getElementById('login-error');
+
+function openLoginModal() {
+  loginError.textContent = '';
+  loginModal.hidden = false;
+  document.getElementById('login-username').focus();
+}
+
+function closeLoginModal() {
+  loginModal.hidden = true;
+  loginForm.reset();
+  loginError.textContent = '';
+}
+
+function updateAccountControls() {
+  const isLoggedIn = Boolean(loggedInAccount);
+  accountButton.textContent = isLoggedIn ? 'Log out' : 'Log in';
+  accountName.textContent = isLoggedIn ? loggedInAccount.username : '';
+  accountName.hidden = !isLoggedIn;
+}
+
+accountButton.addEventListener('click', () => {
+  if (loggedInAccount) {
+    loggedInAccount = null;
+    updateAccountControls();
+    if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
+    return;
+  }
+  openLoginModal();
+});
+
+document.getElementById('close-login-modal').addEventListener('click', closeLoginModal);
+loginModal.addEventListener('click', (event) => {
+  if (event.target === loginModal) closeLoginModal();
+});
+
+loginForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const formData = new FormData(loginForm);
+  const account = MOCK_ACCOUNTS.find(
+    (mockAccount) => mockAccount.username === formData.get('username')
+      && mockAccount.password === formData.get('password')
+  );
+
+  if (!account) {
+    loginError.textContent = 'Incorrect username or password.';
+    return;
+  }
+
+  loggedInAccount = account;
+  updateAccountControls();
+  closeLoginModal();
+  loadVehicleOptions('vehicle-select');
+  if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
+});
 
 // --- Navigation between the three top-level views ----------------------
 document.querySelectorAll('.nav-btn').forEach((btn) => {
@@ -77,7 +157,7 @@ document.getElementById('confirm-booking').addEventListener('click', async () =>
   try {
     const res = await fetch(`${API_BASE}/bookings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: requestHeaders(true),
       body: JSON.stringify(bookingState),
     });
     const data = await res.json();
@@ -99,7 +179,7 @@ document.getElementById('confirm-booking').addEventListener('click', async () =>
 
 // --- Load vehicle options for both the booking flow and history view ----
 async function loadVehicleOptions(selectElementId) {
-  const res = await fetch(`${API_BASE}/vehicles/customer/${CURRENT_CUSTOMER_ID}`);
+  const res = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`);
   const data = await res.json();
   const select = document.getElementById(selectElementId);
   select.innerHTML = '';
@@ -122,8 +202,16 @@ async function loadBookings() {
   const container = document.getElementById('bookings-list');
   container.textContent = 'Loading...';
 
-  const res = await fetch(`${API_BASE}/bookings/customer/${CURRENT_CUSTOMER_ID}`);
+  const bookingsUrl = loggedInAccount && loggedInAccount.role !== 'customer'
+    ? `${API_BASE}/bookings/all`
+    : `${API_BASE}/bookings/customer/${getCurrentCustomerId()}`;
+  const res = await fetch(bookingsUrl, { headers: requestHeaders() });
   const data = await res.json();
+
+  if (!res.ok) {
+    container.textContent = data.error || 'Please log in to view bookings.';
+    return;
+  }
 
   if (data.bookings.length === 0) {
     container.textContent = 'You have no bookings yet.';
@@ -172,6 +260,7 @@ function showBookingDetails(booking) {
     ['Appointment', new Date(booking.slot_start.replace(' ', 'T')).toLocaleString()],
     ['Reference', booking.confirmation_ref],
     ['Status', booking.status],
+    ['Booked by', booking.booked_by || 'Unknown'],
     ['Additional notes', booking.notes || 'No additional notes provided.'],
   ];
 
@@ -196,7 +285,10 @@ document.getElementById('booking-details-modal').addEventListener('click', (even
 });
 
 async function cancelBooking(bookingId) {
-  const res = await fetch(`${API_BASE}/bookings/${bookingId}/cancel`, { method: 'POST' });
+  const res = await fetch(`${API_BASE}/bookings/${bookingId}/cancel`, {
+    method: 'POST',
+    headers: requestHeaders(),
+  });
   const data = await res.json();
 
   if (!res.ok) {
