@@ -7,8 +7,14 @@
 </head>
 <body>
   <header>
-    <h1>Mechanics Safety &amp; Quality Portal</h1>
-    <p class="subtitle">Customer Booking &amp; Basic Portal (prototype)</p>
+    <div>
+      <h1>Mechanics Safety &amp; Quality Portal</h1>
+      <p class="subtitle">Customer Booking &amp; Basic Portal (prototype)</p>
+    </div>
+    <div class="account-controls">
+      <span id="account-name" class="account-name" hidden></span>
+      <button id="account-button" type="button">Log in</button>
+    </div>
   </header>
 
   <nav>
@@ -18,6 +24,25 @@
   </nav>
 
   <main>
+
+  <div id="login-modal" class="modal-backdrop" hidden>
+    <section class="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
+      <div class="modal-header">
+        <h2 id="login-title">Log in</h2>
+        <button id="close-login-modal" class="modal-close" type="button" aria-label="Close login">&times;</button>
+      </div>
+      <form id="login-form">
+        <label for="login-username">Username</label>
+        <input id="login-username" name="username" type="text" autocomplete="username" required />
+
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+
+        <p id="login-error" class="login-error" role="alert"></p>
+        <button type="submit">Log in</button>
+      </form>
+    </section>
+  </div>
     <!-- Step-based booking flow: select vehicle -> select service+slot -> confirm -->
     <section id="view-booking" class="view active">
       <h2>Book a Service</h2>

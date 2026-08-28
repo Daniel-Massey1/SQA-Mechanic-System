@@ -14,6 +14,14 @@ The server starts at `http://localhost:3001`. Open that address in a browser to 
 
 To stop the server, press `Ctrl+C` in the terminal.
 
+## Demo Accounts
+Three mock accounts:
+customer1 / 123
+customer2 / 123
+mechanic1 / 123
+manager1 / 123
+
+
 ### Recommended: DB Browser for SQLite
 
 1. Stop the backend if it is running, or open the database in read-only mode.

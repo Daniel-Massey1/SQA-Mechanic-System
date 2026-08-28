@@ -9,8 +9,30 @@ body {
   color: #1f2937;
 }
 
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 header h1 { margin-bottom: 0; }
 .subtitle { margin-top: 0.25rem; color: #6b7280; }
+
+.account-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.account-name {
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.account-controls button { margin-top: 0; }
 
 nav {
   display: flex;
@@ -118,6 +140,21 @@ button {
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 20px 50px rgba(17, 24, 39, 0.25);
+}
+
+.login-modal {
+  width: min(100%, 380px);
+  padding: 1.25rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 20px 50px rgba(17, 24, 39, 0.25);
+}
+
+.login-error {
+  min-height: 1.2rem;
+  margin: 0.75rem 0 0;
+  color: #b91c1c;
+  font-size: 0.9rem;
 }
 
 .modal-header {
