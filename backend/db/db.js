@@ -100,6 +100,15 @@ function getDb() {
     );
   `);
 
+  const bookingColumns = db.prepare('PRAGMA table_info(bookings)').all();
+  if (!bookingColumns.some((column) => column.name === 'notes')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+  }
+  if (!bookingColumns.some((column) => column.name === 'booked_by')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN booked_by TEXT NOT NULL DEFAULT ''");
+  }
+  db.prepare("UPDATE bookings SET booked_by = 'customer1' WHERE booked_by = ''").run();
+
   seedIfEmpty();
 
   return db;
@@ -117,7 +126,7 @@ function seedIfEmpty() {
     'INSERT INTO vehicles (customer_id, plate, make, model, wof_expiry) VALUES (?, ?, ?, ?, ?)'
   );
   const v1 = insertVehicle.run(c1, 'ABC123', 'Toyota', 'Corolla', '2026-09-10').lastInsertRowid;
-  const v2 = insertVehicle.run(c1, 'XYZ789', 'Mazda', '3', '2026-12-01').lastInsertRowid;
+  const v2 = insertVehicle.run(c2, 'XYZ789', 'Toyota', 'Yaris', '2026-12-01').lastInsertRowid;
 
   const insertDiag = db.prepare(
     `INSERT INTO diagnostic_entries (vehicle_id, fault_description, severity, status, created_at)
@@ -129,10 +138,10 @@ function seedIfEmpty() {
   insertDiag.run(v2, 'Battery terminal corrosion cleaned', 'low', 'fixed', '2026-06-20 14:00:00');
 
   const insertBooking = db.prepare(
-    `INSERT INTO bookings (vehicle_id, service_type, slot_start, status, confirmation_ref)
-     VALUES (?, ?, ?, ?, ?)`
+     `INSERT INTO bookings (vehicle_id, service_type, slot_start, status, confirmation_ref, booked_by)
+      VALUES (?, ?, ?, ?, ?, ?)`
   );
-  insertBooking.run(v1, 'basic_service', '2026-09-05 09:00:00', 'confirmed', 'REF-SEED-0001');
+    insertBooking.run(v1, 'basic_service', '2026-09-05 09:00:00', 'confirmed', 'REF-SEED-0001', 'customer1');
 
   console.log('Database seeded with sample customers, vehicles, bookings and history.');
 }
