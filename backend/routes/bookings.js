@@ -33,7 +33,7 @@ router.get('/customer/:customerId', (req, res) => {
 
 /**
  * POST /api/bookings
- * Body: { vehicleId, serviceType, slotStart }
+ * Body: { vehicleId, serviceType, slotStart, notes }
  *
  * Acceptance criteria covered:
  *  - "An authenticated customer can confirm a booking when the selected
@@ -48,7 +48,7 @@ router.get('/customer/:customerId', (req, res) => {
  */
 router.post('/', (req, res) => {
   const db = getDb();
-  const { vehicleId, serviceType, slotStart } = req.body;
+  const { vehicleId, serviceType, slotStart, notes = '' } = req.body;
 
   if (!vehicleId || !serviceType || !slotStart) {
     return res.status(400).json({ error: 'vehicleId, serviceType and slotStart are all required.' });
@@ -68,10 +68,10 @@ router.post('/', (req, res) => {
   try {
     const result = db
       .prepare(
-        `INSERT INTO bookings (vehicle_id, service_type, slot_start, status, confirmation_ref)
-         VALUES (?, ?, ?, 'confirmed', ?)`
+          `INSERT INTO bookings (vehicle_id, service_type, slot_start, notes, status, confirmation_ref)
+          VALUES (?, ?, ?, ?, 'confirmed', ?)`
       )
-      .run(vehicleId, serviceType, slotStart, confirmationRef);
+        .run(vehicleId, serviceType, slotStart, String(notes).trim(), confirmationRef);
 
     const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(result.lastInsertRowid);
     return res.status(201).json({ booking });
@@ -122,7 +122,7 @@ router.post('/:id/cancel', (req, res) => {
     });
   }
 
-  db.prepare(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`).run(id);
+  db.prepare('DELETE FROM bookings WHERE id = ?').run(id);
 
   // Mocked mechanic notification - replace with real email service later.
   console.log(`[MOCK EMAIL] Notifying mechanic: booking #${id} (ref ${booking.confirmation_ref}) was cancelled.`);

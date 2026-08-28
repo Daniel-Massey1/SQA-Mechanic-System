@@ -100,6 +100,11 @@ function getDb() {
     );
   `);
 
+  const bookingColumns = db.prepare('PRAGMA table_info(bookings)').all();
+  if (!bookingColumns.some((column) => column.name === 'notes')) {
+    db.exec("ALTER TABLE bookings ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+  }
+
   seedIfEmpty();
 
   return db;

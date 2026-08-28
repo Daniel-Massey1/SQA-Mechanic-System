@@ -11,6 +11,7 @@ const bookingState = {
   vehicleId: null,
   serviceType: null,
   slotStart: null,
+  notes: '',
 };
 
 // --- Navigation between the three top-level views ----------------------
@@ -57,6 +58,7 @@ document.getElementById('to-step-3').addEventListener('click', () => {
 
   bookingState.serviceType = serviceType;
   bookingState.slotStart = slotTime.replace('T', ' ') + ':00';
+  bookingState.notes = document.getElementById('booking-notes').value.trim();
 
   const vehicleLabel = document.getElementById('vehicle-select').selectedOptions[0].textContent;
   document.getElementById('confirm-summary').textContent =
@@ -149,9 +151,49 @@ async function loadBookings() {
       card.appendChild(cancelBtn);
     }
 
+    const detailsBtn = document.createElement('button');
+    detailsBtn.textContent = 'View Details';
+    detailsBtn.className = 'details-btn';
+    detailsBtn.addEventListener('click', () => showBookingDetails(b));
+    card.appendChild(detailsBtn);
+
     container.appendChild(card);
   });
 }
+
+function showBookingDetails(booking) {
+  const modal = document.getElementById('booking-details-modal');
+  const content = document.getElementById('modal-content');
+  content.innerHTML = '';
+
+  const details = [
+    ['Vehicle', `${booking.plate} - ${booking.make} ${booking.model}`],
+    ['Service', booking.service_type.replace('_', ' ')],
+    ['Appointment', new Date(booking.slot_start.replace(' ', 'T')).toLocaleString()],
+    ['Reference', booking.confirmation_ref],
+    ['Status', booking.status],
+    ['Additional notes', booking.notes || 'No additional notes provided.'],
+  ];
+
+  details.forEach(([label, value]) => {
+    const row = document.createElement('p');
+    const labelElement = document.createElement('strong');
+    labelElement.textContent = `${label}: `;
+    row.append(labelElement, value);
+    content.appendChild(row);
+  });
+
+  modal.hidden = false;
+}
+
+function closeBookingDetails() {
+  document.getElementById('booking-details-modal').hidden = true;
+}
+
+document.getElementById('close-modal').addEventListener('click', closeBookingDetails);
+document.getElementById('booking-details-modal').addEventListener('click', (event) => {
+  if (event.target.id === 'booking-details-modal') closeBookingDetails();
+});
 
 async function cancelBooking(bookingId) {
   const res = await fetch(`${API_BASE}/bookings/${bookingId}/cancel`, { method: 'POST' });
