@@ -7,8 +7,14 @@
 </head>
 <body>
   <header>
-    <h1>Mechanics Safety &amp; Quality Portal</h1>
-    <p class="subtitle">Customer Booking &amp; Basic Portal (prototype)</p>
+    <div>
+      <h1>Mechanics Safety &amp; Quality Portal</h1>
+      <p class="subtitle">Customer Booking &amp; Basic Portal (prototype)</p>
+    </div>
+    <div class="account-controls">
+      <span id="account-name" class="account-name" hidden></span>
+      <button id="account-button" type="button">Log in</button>
+    </div>
   </header>
 
   <nav>
@@ -18,6 +24,25 @@
   </nav>
 
   <main>
+
+  <div id="login-modal" class="modal-backdrop" hidden>
+    <section class="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
+      <div class="modal-header">
+        <h2 id="login-title">Log in</h2>
+        <button id="close-login-modal" class="modal-close" type="button" aria-label="Close login">&times;</button>
+      </div>
+      <form id="login-form">
+        <label for="login-username">Username</label>
+        <input id="login-username" name="username" type="text" autocomplete="username" required />
+
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+
+        <p id="login-error" class="login-error" role="alert"></p>
+        <button type="submit">Log in</button>
+      </form>
+    </section>
+  </div>
     <!-- Step-based booking flow: select vehicle -> select service+slot -> confirm -->
     <section id="view-booking" class="view active">
       <h2>Book a Service</h2>
@@ -43,6 +68,9 @@
 
         <label for="slot-time">Available time slot</label>
         <input type="datetime-local" id="slot-time" />
+
+        <label for="booking-notes">Additional notes</label>
+        <textarea id="booking-notes" rows="4" placeholder="Tell us anything we should know about your vehicle or service needs."></textarea>
 
         <div class="btn-row">
           <button id="back-to-1">Back</button>
@@ -76,6 +104,16 @@
       <div id="history-list"></div>
     </section>
   </main>
+
+  <div id="booking-details-modal" class="modal-backdrop" hidden>
+    <section class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <h2 id="modal-title">Booking details</h2>
+        <button id="close-modal" class="modal-close" type="button" aria-label="Close booking details">&times;</button>
+      </div>
+      <div id="modal-content"></div>
+    </section>
+  </div>
 
   <script src="app.js"></script>
 </body>
