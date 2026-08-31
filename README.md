@@ -15,7 +15,7 @@ The server starts at `http://localhost:3001`. Open that address in a browser to 
 To stop the server, press `Ctrl+C` in the terminal.
 
 ## Demo Accounts
-Three mock accounts:
+Four mock accounts:
 customer1 / 123
 customer2 / 123
 mechanic1 / 123
