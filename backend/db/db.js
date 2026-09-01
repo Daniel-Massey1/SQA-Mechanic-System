@@ -116,6 +116,9 @@ function getDb() {
   if (!bookingColumns.some((column) => column.name === 'customer_notification')) {
     db.exec('ALTER TABLE bookings ADD COLUMN customer_notification TEXT');
   }
+  if (!bookingColumns.some((column) => column.name === 'decided_by')) {
+    db.exec('ALTER TABLE bookings ADD COLUMN decided_by TEXT');
+  }
   const jobColumns = db.prepare('PRAGMA table_info(jobs)').all();
   if (!jobColumns.some((column) => column.name === 'status')) {
     db.exec("ALTER TABLE jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'In Progress'");
