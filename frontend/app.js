@@ -417,6 +417,7 @@ function loadChecklistBookingOptions(bookings) {
   bookings.forEach((booking) => {
     const option = document.createElement('option');
     option.value = booking.id;
+    option.dataset.serviceType = booking.service_type;
     // Include the reference number so mechanics can identify the booking.
     option.textContent = `${booking.confirmation_ref} - ${booking.plate} - ${booking.service_type.replace('_', ' ')}`;
     select.appendChild(option);
@@ -454,6 +455,17 @@ async function loadChecklistItems(serviceType) {
 
 document.getElementById('checklist-service-type').addEventListener('change', (event) => {
   loadChecklistItems(event.target.value);
+});
+
+document.getElementById('checklist-booking-id').addEventListener('change', (event) => {
+  const selectedOption = event.target.selectedOptions[0];
+  const serviceType = selectedOption?.dataset.serviceType;
+  if (!serviceType) return;
+
+  // Use the selected booking's service type for its checklist.
+  const serviceTypeSelect = document.getElementById('checklist-service-type');
+  serviceTypeSelect.value = serviceType;
+  loadChecklistItems(serviceType);
 });
 
 // Save a compliant job only after every item has been checked.

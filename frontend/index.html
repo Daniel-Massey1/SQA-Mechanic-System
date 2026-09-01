@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mechanics Portal - Customer</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -111,53 +112,72 @@
       <div id="history-list"></div>
     </section>
 
-    <section id="view-mechanic" class="view">
-      <h2>Mechanic Portal &amp; Service Checklists</h2>
-      <h3>Request Approvals</h3>
-      <div id="mechanic-bookings-list"></div>
-      <h3>Service Checklists</h3>
-      <form id="checklist-job-form">
-        <label for="checklist-booking-id">Upcoming Booking</label>
-        <select id="checklist-booking-id" name="bookingId" required>
-          <option value="">Loading bookings...</option>
-        </select>
+    <section id="view-mechanic" class="view mechanic-workspace">
+      <div class="mechanic-title">
+        <p>Workshop Desk</p>
+        <h2>Mechanic Portal</h2>
+      </div>
+      <div class="mechanic-grid">
+        <section class="mechanic-panel approvals-panel">
+          <div class="mechanic-panel-heading">
+            <h3>Request Approvals</h3>
+          </div>
+          <div id="mechanic-bookings-list"></div>
+        </section>
 
-        <label for="checklist-service-type">Service Type</label>
-        <select id="checklist-service-type" name="serviceType">
-          <option value="basic_service">Basic Service</option>
-          <option value="full_service">Full Service</option>
-        </select>
+        <section class="mechanic-panel">
+          <div class="mechanic-panel-heading">
+            <h3>Service Checklist</h3>
+          </div>
+          <form id="checklist-job-form">
+            <label for="checklist-booking-id">Upcoming Booking</label>
+            <select id="checklist-booking-id" name="bookingId" required>
+              <option value="">Loading bookings...</option>
+            </select>
 
-        <div id="checklist-items" class="checklist-items"></div>
-        <button id="save-checklist-job" type="submit">Save Checklist</button>
-        <div id="checklist-result" role="status"></div>
-      </form>
-      <h3>Diagnostic Entry</h3>
-      <form id="diagnostic-entry-form">
-        <label for="diagnostic-vehicle-id">Vehicle</label>
-        <select id="diagnostic-vehicle-id" name="vehicleId" required>
-          <option value="">Loading vehicles...</option>
-        </select>
+            <label for="checklist-service-type">Service Type</label>
+            <select id="checklist-service-type" name="serviceType">
+              <option value="basic_service">Basic Service</option>
+              <option value="full_service">Full Service</option>
+            </select>
 
-        <label for="fault-description">Fault Description</label>
-        <textarea id="fault-description" name="faultDescription" rows="4" required></textarea>
+            <div id="checklist-items" class="checklist-items"></div>
+            <button id="save-checklist-job" type="submit">Save Checklist</button>
+            <div id="checklist-result" role="status"></div>
+          </form>
+        </section>
 
-        <label for="diagnostic-severity">Severity</label>
-        <select id="diagnostic-severity" name="severity" required>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
+        <section class="mechanic-panel">
+          <div class="mechanic-panel-heading">
+            <h3>Diagnostic Entry</h3>
+          </div>
+          <form id="diagnostic-entry-form">
+            <label for="diagnostic-vehicle-id">Vehicle</label>
+            <select id="diagnostic-vehicle-id" name="vehicleId" required>
+              <option value="">Loading vehicles...</option>
+            </select>
 
-        <label for="diagnostic-status">Status</label>
-        <select id="diagnostic-status" name="status" required>
-          <option value="fixed">Fixed</option>
-          <option value="flagged_for_next_visit">Flagged for Next Visit</option>
-        </select>
+            <label for="fault-description">Fault Description</label>
+            <textarea id="fault-description" name="faultDescription" rows="4" required></textarea>
 
-        <button type="submit">Save Diagnostic Entry</button>
-        <div id="diagnostic-result" role="status"></div>
-      </form>
+            <label for="diagnostic-severity">Severity</label>
+            <select id="diagnostic-severity" name="severity" required>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+
+            <label for="diagnostic-status">Status</label>
+            <select id="diagnostic-status" name="status" required>
+              <option value="fixed">Fixed</option>
+              <option value="flagged_for_next_visit">Flagged for Next Visit</option>
+            </select>
+
+            <button type="submit">Save Diagnostic Entry</button>
+            <div id="diagnostic-result" role="status"></div>
+          </form>
+        </section>
+      </div>
     </section>
   </main>
 
