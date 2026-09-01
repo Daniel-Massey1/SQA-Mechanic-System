@@ -5,7 +5,7 @@ const { requireAccount } = require('../auth');
 const router = express.Router();
 const VALID_SEVERITIES = ['low', 'medium', 'high'];
 const VALID_DIAGNOSTIC_STATUSES = ['fixed', 'flagged_for_next_visit'];
-const VALID_CHECKLIST_SERVICE_TYPES = ['basic_service', 'full_service'];
+const VALID_CHECKLIST_SERVICE_TYPES = ['basic_service', 'full_service', 'wof'];
 
 // Return approval requests and checklist templates for mechanics.
 router.get('/dashboard', requireAccount, (req, res) => {

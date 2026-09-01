@@ -576,9 +576,9 @@ document.getElementById('diagnostic-entry-form').addEventListener('submit', asyn
 
 // --- Vehicle History view -------------------------------------------------
 async function loadHistoryVehicleOptions() {
-  // Mechanics can review history for every vehicle in the database.
-  if (loggedInAccount?.role === 'mechanic') {
-    // This route returns all vehicles for mechanic users.
+  // Mechanics and managers can review history for every vehicle.
+  if (['mechanic', 'manager'].includes(loggedInAccount?.role)) {
+    // This route returns all vehicles for approved staff users.
     const res = await fetch(`${API_BASE}/vehicles/all`, { headers: requestHeaders() });
     const data = await res.json();
     loadHistoryVehicleSelect(data.vehicles || []);

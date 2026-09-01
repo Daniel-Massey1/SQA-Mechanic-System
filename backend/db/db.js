@@ -171,7 +171,7 @@ function seedChecklistsIfEmpty() {
   const insertChecklist = db.prepare('INSERT INTO checklists (service_type, items_json) VALUES (?, ?)');
   insertChecklist.run('basic_service', JSON.stringify(getBasicServiceItems()));
   insertChecklist.run('full_service', JSON.stringify(getFullServiceItems()));
-  insertChecklist.run('wof', JSON.stringify(['Inspect lights and reflectors', 'Check tyres and brakes', 'Check seat belts and windscreen']));
+  insertChecklist.run('wof', JSON.stringify(getWofItems()));
 }
 
 function getBasicServiceItems() {
@@ -203,15 +203,33 @@ function getFullServiceItems() {
   ];
 }
 
+function getWofItems() {
+  // Main inspection areas used in a New Zealand WOF check.
+  return [
+    'Check tyres for tread depth, damage and legal fitment',
+    'Check brakes, parking brake and brake warning systems',
+    'Check headlights, indicators, brake lights and reflectors',
+    'Check windscreen, windows, wipers and washers',
+    'Check seat belts and restraint anchorages',
+    'Check steering, suspension, wheel bearings and joints',
+    'Check vehicle structure, chassis and body for corrosion',
+    'Check exhaust system for damage, leaks and secure mounting',
+    'Check fuel system for leaks and secure components',
+    'Check doors, bonnet, boot and mirrors operate securely',
+  ];
+}
+
 function updateSampleChecklists() {
   // These are the original placeholder checklist items.
   const oldBasicItems = JSON.stringify(['Check engine oil', 'Inspect brakes', 'Check tyre pressure']);
   const oldFullItems = JSON.stringify(['Change engine oil and filter', 'Inspect brakes and suspension', 'Check all fluid levels']);
+  const oldWofItems = JSON.stringify(['Inspect lights and reflectors', 'Check tyres and brakes', 'Check seat belts and windscreen']);
   const updateChecklist = db.prepare('UPDATE checklists SET items_json = ? WHERE service_type = ? AND items_json = ?');
 
   // Only replace the original sample data, not custom checklist edits.
   updateChecklist.run(JSON.stringify(getBasicServiceItems()), 'basic_service', oldBasicItems);
   updateChecklist.run(JSON.stringify(getFullServiceItems()), 'full_service', oldFullItems);
+  updateChecklist.run(JSON.stringify(getWofItems()), 'wof', oldWofItems);
 }
 
 module.exports = { getDb };
