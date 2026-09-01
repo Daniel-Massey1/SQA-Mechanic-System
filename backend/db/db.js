@@ -55,9 +55,11 @@ function getDb() {
       vehicle_id INTEGER NOT NULL,
       service_type TEXT NOT NULL,       -- e.g. 'basic_service', 'full_service', 'wof'
       slot_start TEXT NOT NULL,         -- ISO datetime string
-      status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'confirmed' | 'denied' | 'cancelled'
+      status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'confirmed' | 'completed' | 'denied' | 'cancelled'
       confirmation_ref TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT,
+      customer_notification TEXT,
       FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
     );
 
@@ -95,6 +97,7 @@ function getDb() {
       mechanic_name TEXT,
       checklist_id INTEGER,
       checklist_compliant INTEGER DEFAULT 0, -- 0 = false, 1 = true
+      status TEXT NOT NULL DEFAULT 'In Progress',
       FOREIGN KEY (booking_id) REFERENCES bookings(id),
       FOREIGN KEY (checklist_id) REFERENCES checklists(id)
     );
@@ -107,11 +110,23 @@ function getDb() {
   if (!bookingColumns.some((column) => column.name === 'booked_by')) {
     db.exec("ALTER TABLE bookings ADD COLUMN booked_by TEXT NOT NULL DEFAULT ''");
   }
+  if (!bookingColumns.some((column) => column.name === 'completed_at')) {
+    db.exec('ALTER TABLE bookings ADD COLUMN completed_at TEXT');
+  }
+  if (!bookingColumns.some((column) => column.name === 'customer_notification')) {
+    db.exec('ALTER TABLE bookings ADD COLUMN customer_notification TEXT');
+  }
+  const jobColumns = db.prepare('PRAGMA table_info(jobs)').all();
+  if (!jobColumns.some((column) => column.name === 'status')) {
+    db.exec("ALTER TABLE jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'In Progress'");
+  }
   db.prepare("UPDATE bookings SET booked_by = 'customer1' WHERE booked_by = ''").run();
 
   seedIfEmpty();
   // Add standard checklists the first time the database is used.
   seedChecklistsIfEmpty();
+  // Upgrade only the original short sample checklists.
+  updateSampleChecklists();
 
   return db;
 }
@@ -154,9 +169,49 @@ function seedChecklistsIfEmpty() {
 
   // Store each service checklist as a JSON array.
   const insertChecklist = db.prepare('INSERT INTO checklists (service_type, items_json) VALUES (?, ?)');
-  insertChecklist.run('basic_service', JSON.stringify(['Check engine oil', 'Inspect brakes', 'Check tyre pressure']));
-  insertChecklist.run('full_service', JSON.stringify(['Change engine oil and filter', 'Inspect brakes and suspension', 'Check all fluid levels']));
+  insertChecklist.run('basic_service', JSON.stringify(getBasicServiceItems()));
+  insertChecklist.run('full_service', JSON.stringify(getFullServiceItems()));
   insertChecklist.run('wof', JSON.stringify(['Inspect lights and reflectors', 'Check tyres and brakes', 'Check seat belts and windscreen']));
+}
+
+function getBasicServiceItems() {
+  // Standard checks for a routine basic service.
+  return [
+    'Drain and replace engine oil',
+    'Replace engine oil filter',
+    'Check brake pads, discs and fluid level',
+    'Check tyre condition and pressure',
+    'Check coolant, washer and power steering fluid levels',
+    'Check exterior lights, wipers and horn',
+    'Reset the service reminder',
+  ];
+}
+
+function getFullServiceItems() {
+  // Extra checks included in a full service.
+  return [
+    'Complete all basic service checks',
+    'Replace engine oil and oil filter',
+    'Inspect and replace air filter if required',
+    'Inspect brake pads, discs, hoses and fluid condition',
+    'Inspect steering, suspension and wheel bearings',
+    'Check battery condition and charging system',
+    'Inspect drive belts, exhaust system and underbody',
+    'Check all fluid levels and coolant condition',
+    'Check tyre condition, pressure and tread depth',
+    'Road test vehicle and reset the service reminder',
+  ];
+}
+
+function updateSampleChecklists() {
+  // These are the original placeholder checklist items.
+  const oldBasicItems = JSON.stringify(['Check engine oil', 'Inspect brakes', 'Check tyre pressure']);
+  const oldFullItems = JSON.stringify(['Change engine oil and filter', 'Inspect brakes and suspension', 'Check all fluid levels']);
+  const updateChecklist = db.prepare('UPDATE checklists SET items_json = ? WHERE service_type = ? AND items_json = ?');
+
+  // Only replace the original sample data, not custom checklist edits.
+  updateChecklist.run(JSON.stringify(getBasicServiceItems()), 'basic_service', oldBasicItems);
+  updateChecklist.run(JSON.stringify(getFullServiceItems()), 'full_service', oldFullItems);
 }
 
 module.exports = { getDb };

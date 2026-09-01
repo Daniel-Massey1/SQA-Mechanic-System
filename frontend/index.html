@@ -20,6 +20,7 @@
   <nav>
     <button id="booking-nav-button" data-view="booking" class="nav-btn active">Book a Service</button>
     <button id="bookings-nav-button" data-view="bookings" class="nav-btn">My Bookings</button>
+    <button id="completed-nav-button" data-view="completed" class="nav-btn" hidden>Completed Bookings</button>
     <button data-view="history" class="nav-btn">Vehicle History</button>
     <button id="mechanic-nav-button" data-view="mechanic" class="nav-btn" hidden>Mechanic Portal</button>
   </nav>
@@ -97,6 +98,11 @@
       <div id="bookings-list"></div>
     </section>
 
+    <section id="view-completed" class="view">
+      <h2>Completed Bookings</h2>
+      <div id="completed-bookings-list"></div>
+    </section>
+
     <!-- Vehicle history -->
     <section id="view-history" class="view">
       <h2>Vehicle History</h2>
@@ -110,7 +116,22 @@
       <h3>Request Approvals</h3>
       <div id="mechanic-bookings-list"></div>
       <h3>Service Checklists</h3>
-      <div id="service-checklists-list"></div>
+      <form id="checklist-job-form">
+        <label for="checklist-booking-id">Upcoming Booking</label>
+        <select id="checklist-booking-id" name="bookingId" required>
+          <option value="">Loading bookings...</option>
+        </select>
+
+        <label for="checklist-service-type">Service Type</label>
+        <select id="checklist-service-type" name="serviceType">
+          <option value="basic_service">Basic Service</option>
+          <option value="full_service">Full Service</option>
+        </select>
+
+        <div id="checklist-items" class="checklist-items"></div>
+        <button id="save-checklist-job" type="submit">Save Checklist</button>
+        <div id="checklist-result" role="status"></div>
+      </form>
       <h3>Diagnostic Entry</h3>
       <form id="diagnostic-entry-form">
         <label for="diagnostic-vehicle-id">Vehicle</label>

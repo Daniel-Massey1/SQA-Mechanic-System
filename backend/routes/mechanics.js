@@ -5,6 +5,7 @@ const { requireAccount } = require('../auth');
 const router = express.Router();
 const VALID_SEVERITIES = ['low', 'medium', 'high'];
 const VALID_DIAGNOSTIC_STATUSES = ['fixed', 'flagged_for_next_visit'];
+const VALID_CHECKLIST_SERVICE_TYPES = ['basic_service', 'full_service'];
 
 // Return approval requests and checklist templates for mechanics.
 router.get('/dashboard', requireAccount, (req, res) => {
@@ -45,6 +46,85 @@ router.get('/upcoming', requireAccount, (req, res) => {
   ).all();
 
   return res.json({ bookings });
+});
+
+// Return bookings completed by a mechanic.
+router.get('/completed', requireAccount, (req, res) => {
+  if (req.account.role !== 'mechanic') {
+    return res.status(403).json({ error: 'Only mechanic accounts can view completed bookings.' });
+  }
+
+  const bookings = getDb().prepare(
+    `SELECT bookings.*, vehicles.plate, vehicles.make, vehicles.model, customers.name AS customer_name
+     FROM bookings
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     JOIN customers ON customers.id = vehicles.customer_id
+     WHERE bookings.status = 'completed'
+     ORDER BY datetime(bookings.completed_at) DESC`
+  ).all();
+
+  return res.json({ bookings });
+});
+
+// Return items for the service checklist selected by a mechanic.
+router.get('/checklists/:serviceType', requireAccount, (req, res) => {
+  if (req.account.role !== 'mechanic') {
+    return res.status(403).json({ error: 'Only mechanic accounts can view service checklists.' });
+  }
+  if (!VALID_CHECKLIST_SERVICE_TYPES.includes(req.params.serviceType)) {
+    return res.status(400).json({ error: 'Choose a valid service type.' });
+  }
+
+  const checklist = getDb().prepare(
+    'SELECT * FROM checklists WHERE service_type = ?'
+  ).get(req.params.serviceType);
+  if (!checklist) return res.status(404).json({ error: 'Checklist not found.' });
+
+  return res.json({ checklist: { ...checklist, items: JSON.parse(checklist.items_json) } });
+});
+
+// Save a compliant job after every checklist item is completed.
+router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
+  if (req.account.role !== 'mechanic') {
+    return res.status(403).json({ error: 'Only mechanic accounts can save checklist jobs.' });
+  }
+
+  const { bookingId, serviceType, completedItems } = req.body;
+  if (!Number.isInteger(Number(bookingId)) || !VALID_CHECKLIST_SERVICE_TYPES.includes(serviceType)) {
+    return res.status(400).json({ error: 'Booking and service type are required.' });
+  }
+
+  const db = getDb();
+  const booking = db.prepare("SELECT id FROM bookings WHERE id = ? AND status = 'confirmed'").get(bookingId);
+  if (!booking) return res.status(400).json({ error: 'Choose a confirmed booking.' });
+
+  const checklist = db.prepare('SELECT * FROM checklists WHERE service_type = ?').get(serviceType);
+  const items = checklist ? JSON.parse(checklist.items_json) : [];
+  const everyItemCompleted = Array.isArray(completedItems)
+    && completedItems.length === items.length
+    && items.every((item) => completedItems.includes(item));
+  if (!checklist || !everyItemCompleted) {
+    return res.status(400).json({ error: 'Complete every checklist item before saving.' });
+  }
+
+  // Save the job and booking completion together.
+  const completeBooking = db.transaction(() => {
+    const job = db.prepare(
+      `INSERT INTO jobs (booking_id, mechanic_name, checklist_id, checklist_compliant, status)
+       VALUES (?, ?, ?, 1, 'Checklist Compliant')`
+    ).run(bookingId, req.account.username, checklist.id);
+    db.prepare(
+      `UPDATE bookings
+       SET status = 'completed', completed_at = datetime('now'),
+           customer_notification = 'Your vehicle service has been completed.'
+       WHERE id = ?`
+    ).run(bookingId);
+    return job.lastInsertRowid;
+  });
+  const jobId = completeBooking();
+
+  console.log(`[MOCK EMAIL] Notifying customer: booking #${bookingId} has been completed.`);
+  return res.status(201).json({ jobId, status: 'Checklist Compliant', bookingStatus: 'completed' });
 });
 
 // Let mechanics approve or deny a pending request.

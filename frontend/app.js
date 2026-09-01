@@ -61,6 +61,7 @@ function updateAccountControls() {
   // Mechanics use approvals and their schedule instead of customer booking.
   document.getElementById('booking-nav-button').hidden = isMechanic;
   document.getElementById('bookings-nav-button').textContent = isMechanic ? 'Upcoming Bookings' : 'My Bookings';
+  document.getElementById('completed-nav-button').hidden = !isMechanic;
   document.getElementById('mechanic-nav-button').hidden = !isMechanic;
 }
 
@@ -111,6 +112,7 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
     document.getElementById(`view-${btn.dataset.view}`).classList.add('active');
 
     if (btn.dataset.view === 'bookings') loadBookings();
+    if (btn.dataset.view === 'completed') loadCompletedBookings();
     if (btn.dataset.view === 'history') loadHistoryVehicleOptions();
     if (btn.dataset.view === 'mechanic') loadMechanicPortal();
   });
@@ -242,6 +244,13 @@ async function loadBookings() {
       <span class="badge ${badgeClass}">${b.status}</span>
     `;
 
+    if (!isMechanic && b.status === 'completed' && b.customer_notification) {
+      const notice = document.createElement('p');
+      notice.className = 'completion-notice';
+      notice.textContent = b.customer_notification;
+      card.appendChild(notice);
+    }
+
     // Mechanics can cancel approved appointments; customers can cancel pending or approved requests.
     if (b.status === 'confirmed' || (!isMechanic && b.status === 'pending')) {
       const cancelBtn = document.createElement('button');
@@ -259,6 +268,41 @@ async function loadBookings() {
 
     container.appendChild(card);
   });
+}
+
+// Show services that have finished and passed their checklist.
+async function loadCompletedBookings() {
+  const container = document.getElementById('completed-bookings-list');
+  container.textContent = 'Loading...';
+
+  try {
+    const res = await fetch(`${API_BASE}/mechanics/completed`, { headers: requestHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      container.textContent = data.error || 'Unable to load completed bookings.';
+      return;
+    }
+    if (data.bookings.length === 0) {
+      container.textContent = 'No completed bookings.';
+      return;
+    }
+
+    container.innerHTML = '';
+    data.bookings.forEach((booking) => {
+      const card = document.createElement('div');
+      card.className = 'booking-card';
+      card.innerHTML = `
+        <strong>${booking.plate} - ${booking.make} ${booking.model}</strong><br />
+        Customer: ${booking.customer_name}<br />
+        ${booking.service_type.replace('_', ' ')}<br />
+        Completed: ${new Date(booking.completed_at.replace(' ', 'T')).toLocaleString()}
+        <span class="badge badge-completed">completed</span>
+      `;
+      container.appendChild(card);
+    });
+  } catch (err) {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
 }
 
 function showBookingDetails(booking) {
@@ -315,23 +359,25 @@ async function cancelBooking(bookingId) {
 // --- Mechanic Portal ------------------------------------------------------
 async function loadMechanicPortal() {
   const container = document.getElementById('mechanic-bookings-list');
-  const checklistsContainer = document.getElementById('service-checklists-list');
   container.textContent = 'Loading approval requests...';
-  checklistsContainer.textContent = '';
 
   try {
-    const [res, vehiclesRes] = await Promise.all([
+    const [res, vehiclesRes, upcomingRes] = await Promise.all([
       fetch(`${API_BASE}/mechanics/dashboard`, { headers: requestHeaders() }),
       fetch(`${API_BASE}/vehicles/all`, { headers: requestHeaders() }),
+      fetch(`${API_BASE}/mechanics/upcoming`, { headers: requestHeaders() }),
     ]);
     const data = await res.json();
     const vehiclesData = await vehiclesRes.json();
+    const upcomingData = await upcomingRes.json();
 
     if (!res.ok) {
       container.textContent = data.error || 'Unable to load mechanic appointments.';
       return;
     }
     loadDiagnosticVehicleOptions(vehiclesData.vehicles || []);
+    loadChecklistBookingOptions(upcomingData.bookings || []);
+    loadChecklistItems(document.getElementById('checklist-service-type').value);
 
     container.innerHTML = '';
     if (data.pendingBookings.length === 0) {
@@ -359,25 +405,97 @@ async function loadMechanicPortal() {
       container.appendChild(card);
     });
 
-    // Show the stored steps for each service type.
-    data.checklists.forEach((checklist) => {
-      const card = document.createElement('div');
-      card.className = 'checklist-card';
-      const heading = document.createElement('strong');
-      heading.textContent = checklist.service_type.replace('_', ' ');
-      const list = document.createElement('ul');
-      checklist.items.forEach((item) => {
-        const listItem = document.createElement('li');
-        listItem.textContent = item;
-        list.appendChild(listItem);
-      });
-      card.append(heading, list);
-      checklistsContainer.appendChild(card);
+  } catch (err) {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+// Fill the job form with approved upcoming bookings.
+function loadChecklistBookingOptions(bookings) {
+  const select = document.getElementById('checklist-booking-id');
+  select.innerHTML = '<option value="">Select an upcoming booking</option>';
+  bookings.forEach((booking) => {
+    const option = document.createElement('option');
+    option.value = booking.id;
+    // Include the reference number so mechanics can identify the booking.
+    option.textContent = `${booking.confirmation_ref} - ${booking.plate} - ${booking.service_type.replace('_', ' ')}`;
+    select.appendChild(option);
+  });
+}
+
+// Load checkbox items from the dedicated checklist table.
+async function loadChecklistItems(serviceType) {
+  const container = document.getElementById('checklist-items');
+  container.textContent = 'Loading checklist...';
+
+  try {
+    const res = await fetch(`${API_BASE}/mechanics/checklists/${serviceType}`, { headers: requestHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      container.textContent = data.error || 'Unable to load checklist.';
+      return;
+    }
+
+    container.innerHTML = '';
+    data.checklist.items.forEach((item) => {
+      const label = document.createElement('label');
+      label.className = 'checklist-item';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.name = 'checklistItem';
+      checkbox.value = item;
+      label.append(checkbox, item);
+      container.appendChild(label);
     });
   } catch (err) {
     container.textContent = 'Could not reach the server. Please try again.';
   }
 }
+
+document.getElementById('checklist-service-type').addEventListener('change', (event) => {
+  loadChecklistItems(event.target.value);
+});
+
+// Save a compliant job only after every item has been checked.
+document.getElementById('checklist-job-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const resultBox = document.getElementById('checklist-result');
+  const checkboxes = [...form.querySelectorAll('input[name="checklistItem"]')];
+  const completedItems = checkboxes.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
+
+  if (checkboxes.length === 0 || completedItems.length !== checkboxes.length) {
+    resultBox.textContent = 'Complete every checklist item before saving.';
+    resultBox.className = 'result-error';
+    return;
+  }
+
+  const formData = new FormData(form);
+  try {
+    const res = await fetch(`${API_BASE}/mechanics/jobs/checklist-compliance`, {
+      method: 'POST',
+      headers: requestHeaders(true),
+      body: JSON.stringify({
+        bookingId: Number(formData.get('bookingId')),
+        serviceType: formData.get('serviceType'),
+        completedItems,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      resultBox.textContent = data.error || 'Unable to save checklist.';
+      resultBox.className = 'result-error';
+      return;
+    }
+
+    resultBox.textContent = `Job #${data.jobId} saved as ${data.status}.`;
+    resultBox.className = 'result-success';
+    loadChecklistItems(formData.get('serviceType'));
+  } catch (err) {
+    resultBox.textContent = 'Could not reach the server. Please try again.';
+    resultBox.className = 'result-error';
+  }
+});
 
 // Fill the diagnostic form with vehicles already in the database.
 function loadDiagnosticVehicleOptions(vehicles) {
