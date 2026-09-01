@@ -4,6 +4,7 @@ const path = require('path');
 
 const vehicleRoutes = require('./routes/vehicles');
 const bookingRoutes = require('./routes/bookings');
+const mechanicRoutes = require('./routes/mechanics');
 const { getDb } = require('./db/db');
 
 const app = express();
@@ -18,6 +19,7 @@ getDb();
 // --- Customer Booking & Basic Portal routes ---
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/mechanics', mechanicRoutes);
 
 // Teammates: mount your routes the same way, e.g.
 //   const mechanicRoutes = require('./routes/mechanics');

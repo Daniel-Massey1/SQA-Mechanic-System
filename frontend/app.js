@@ -1,5 +1,5 @@
 // --- Config -----------------------------------------------------------
-const API_BASE = '/api';
+const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3001/api' : '/api';
 
 // Mocked "logged in customer" for the prototype. Replace with real auth
 // (session/JWT) once the auth/role module exists - everything else here
@@ -54,9 +54,14 @@ function closeLoginModal() {
 
 function updateAccountControls() {
   const isLoggedIn = Boolean(loggedInAccount);
+  const isMechanic = loggedInAccount?.role === 'mechanic';
   accountButton.textContent = isLoggedIn ? 'Log out' : 'Log in';
   accountName.textContent = isLoggedIn ? loggedInAccount.username : '';
   accountName.hidden = !isLoggedIn;
+  // Mechanics use approvals and their schedule instead of customer booking.
+  document.getElementById('booking-nav-button').hidden = isMechanic;
+  document.getElementById('bookings-nav-button').textContent = isMechanic ? 'Upcoming Bookings' : 'My Bookings';
+  document.getElementById('mechanic-nav-button').hidden = !isMechanic;
 }
 
 accountButton.addEventListener('click', () => {
@@ -91,6 +96,9 @@ loginForm.addEventListener('submit', (event) => {
   updateAccountControls();
   closeLoginModal();
   loadVehicleOptions('vehicle-select');
+  if (account.role === 'mechanic') {
+    document.getElementById('bookings-nav-button').click();
+  }
   if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
 });
 
@@ -104,6 +112,7 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
 
     if (btn.dataset.view === 'bookings') loadBookings();
     if (btn.dataset.view === 'history') loadHistoryVehicleOptions();
+    if (btn.dataset.view === 'mechanic') loadMechanicPortal();
   });
 });
 
@@ -168,7 +177,7 @@ document.getElementById('confirm-booking').addEventListener('click', async () =>
       return;
     }
 
-    resultBox.textContent = `Booking confirmed! Reference: ${data.booking.confirmation_ref}`;
+    resultBox.textContent = `Booking request submitted and pending mechanic approval. Reference: ${data.booking.confirmation_ref}`;
     resultBox.className = 'result-success';
     goToStep(1);
   } catch (err) {
@@ -197,13 +206,15 @@ async function loadVehicleOptions(selectElementId) {
   });
 }
 
-// --- My Bookings view ----------------------------------------------------
+// --- Customer and mechanic bookings view ---------------------------------
 async function loadBookings() {
   const container = document.getElementById('bookings-list');
   container.textContent = 'Loading...';
 
-  const bookingsUrl = loggedInAccount && loggedInAccount.role !== 'customer'
-    ? `${API_BASE}/bookings/all`
+  // Mechanics only see confirmed future appointments here.
+  const isMechanic = loggedInAccount?.role === 'mechanic';
+  const bookingsUrl = isMechanic
+    ? `${API_BASE}/mechanics/upcoming`
     : `${API_BASE}/bookings/customer/${getCurrentCustomerId()}`;
   const res = await fetch(bookingsUrl, { headers: requestHeaders() });
   const data = await res.json();
@@ -214,7 +225,7 @@ async function loadBookings() {
   }
 
   if (data.bookings.length === 0) {
-    container.textContent = 'You have no bookings yet.';
+    container.textContent = isMechanic ? 'No upcoming bookings.' : 'You have no bookings yet.';
     return;
   }
 
@@ -222,7 +233,7 @@ async function loadBookings() {
   data.bookings.forEach((b) => {
     const card = document.createElement('div');
     card.className = 'booking-card';
-    const badgeClass = b.status === 'confirmed' ? 'badge-confirmed' : 'badge-cancelled';
+    const badgeClass = `badge-${b.status}`;
 
     card.innerHTML = `
       <strong>${b.plate} - ${b.make} ${b.model}</strong><br />
@@ -231,7 +242,8 @@ async function loadBookings() {
       <span class="badge ${badgeClass}">${b.status}</span>
     `;
 
-    if (b.status === 'confirmed') {
+    // Mechanics can cancel approved appointments; customers can cancel pending or approved requests.
+    if (b.status === 'confirmed' || (!isMechanic && b.status === 'pending')) {
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'Cancel Booking';
       cancelBtn.className = 'cancel-btn';
@@ -298,6 +310,85 @@ async function cancelBooking(bookingId) {
 
   alert('Booking cancelled. The mechanic has been notified.');
   loadBookings();
+}
+
+// --- Mechanic Portal ------------------------------------------------------
+async function loadMechanicPortal() {
+  const container = document.getElementById('mechanic-bookings-list');
+  const checklistsContainer = document.getElementById('service-checklists-list');
+  container.textContent = 'Loading approval requests...';
+  checklistsContainer.textContent = '';
+
+  try {
+    const res = await fetch(`${API_BASE}/mechanics/dashboard`, { headers: requestHeaders() });
+    const data = await res.json();
+
+    if (!res.ok) {
+      container.textContent = data.error || 'Unable to load mechanic appointments.';
+      return;
+    }
+
+    container.innerHTML = '';
+    if (data.pendingBookings.length === 0) {
+      container.textContent = 'No booking requests are waiting for approval.';
+    }
+    // Add one approval card for every pending request.
+    data.pendingBookings.forEach((booking) => {
+      const card = document.createElement('div');
+      card.className = 'booking-card';
+      card.innerHTML = `
+        <strong>${booking.plate} - ${booking.make} ${booking.model}</strong><br />
+        Customer: ${booking.customer_name}<br />
+        ${booking.service_type.replace('_', ' ')} on ${new Date(booking.slot_start.replace(' ', 'T')).toLocaleString()}<br />
+        Notes: ${booking.notes || 'No additional notes provided.'}
+      `;
+      const approveButton = document.createElement('button');
+      approveButton.textContent = 'Approve';
+      approveButton.className = 'approve-btn';
+      approveButton.addEventListener('click', () => decideBooking(booking.id, 'approve'));
+      const denyButton = document.createElement('button');
+      denyButton.textContent = 'Deny';
+      denyButton.className = 'deny-btn';
+      denyButton.addEventListener('click', () => decideBooking(booking.id, 'deny'));
+      card.append(approveButton, denyButton);
+      container.appendChild(card);
+    });
+
+    // Show the stored steps for each service type.
+    data.checklists.forEach((checklist) => {
+      const card = document.createElement('div');
+      card.className = 'checklist-card';
+      const heading = document.createElement('strong');
+      heading.textContent = checklist.service_type.replace('_', ' ');
+      const list = document.createElement('ul');
+      checklist.items.forEach((item) => {
+        const listItem = document.createElement('li');
+        listItem.textContent = item;
+        list.appendChild(listItem);
+      });
+      card.append(heading, list);
+      checklistsContainer.appendChild(card);
+    });
+  } catch (err) {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+async function decideBooking(bookingId, decision) {
+  // Send the mechanic's approval decision to the server.
+  const res = await fetch(`${API_BASE}/mechanics/bookings/${bookingId}/decision`, {
+    method: 'POST',
+    headers: requestHeaders(true),
+    body: JSON.stringify({ decision }),
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data.error || 'Unable to update the booking.');
+    return;
+  }
+
+  loadMechanicPortal();
 }
 
 // --- Vehicle History view -------------------------------------------------
