@@ -5,7 +5,9 @@ const path = require('path');
 const vehicleRoutes = require('./routes/vehicles');
 const bookingRoutes = require('./routes/bookings');
 const mechanicRoutes = require('./routes/mechanics');
+const managerRoutes = require('./routes/manager');
 const { getDb } = require('./db/db');
+const { startWofReminderSchedule } = require('./services/wofReminders');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,18 +16,16 @@ app.use(cors());
 app.use(express.json());
 
 // Initialise (and seed) the database on startup.
-getDb();
+const db = getDb();
+
+// Checks for vehicles due for WOF in 14 days and mock-emails their owners
+startWofReminderSchedule(db);
 
 // --- Customer Booking & Basic Portal routes ---
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/mechanics', mechanicRoutes);
-
-// Teammates: mount your routes the same way, e.g.
-//   const mechanicRoutes = require('./routes/mechanics');
-//   app.use('/api/mechanics', mechanicRoutes);
-//   const managerRoutes = require('./routes/manager');
-//   app.use('/api/manager', managerRoutes);
+app.use('/api/manager', managerRoutes);
 
 // Serve the simple frontend as static files.
 app.use(express.static(path.join(__dirname, '..', 'frontend')));

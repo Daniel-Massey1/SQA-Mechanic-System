@@ -148,7 +148,7 @@ router.post('/bookings/:id/decision', requireAccount, (req, res) => {
   // Approved bookings reserve the appointment slot.
   const status = decision === 'approve' ? 'confirmed' : 'denied';
   try {
-    db.prepare('UPDATE bookings SET status = ? WHERE id = ?').run(status, booking.id);
+    db.prepare('UPDATE bookings SET status = ?, decided_by = ? WHERE id = ?').run(status, req.account.username, booking.id);
     return res.json({ message: `Booking ${status}.`, status });
   } catch (err) {
     if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.code === 'SQLITE_CONSTRAINT') {

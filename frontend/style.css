@@ -271,6 +271,51 @@ button:hover { background: var(--ink-strong); }
   .mechanic-workspace .deny-btn { width: calc(50% - 0.3rem); }
 }
 
+.manager-dashboard {
+  padding: 0;
+  overflow: hidden;
+  background: #f4f7f7;
+  border-color: #d7e2e2;
+}
+
+.manager-body { padding: 1rem 1.5rem 1.5rem; }
+
+#manager-mechanic-filter { max-width: 16rem; }
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  background: #fff;
+  border: 1px solid #dbe5e4;
+  border-left: 3px solid #16a38a;
+  border-radius: 6px;
+}
+
+.summary-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.summary-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--ink-strong);
+}
+
+.job-card { cursor: pointer; }
+.job-card:hover { border-color: #16a38a; }
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
