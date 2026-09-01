@@ -88,7 +88,7 @@ button {
 .btn-row { display: flex; gap: 0.5rem; }
 .btn-row button { flex: 1; }
 
-#booking-result, .booking-card, .history-card {
+#booking-result, #diagnostic-result, .booking-card, .history-card {
   margin-top: 1rem;
   padding: 0.8rem;
   border-radius: 6px;

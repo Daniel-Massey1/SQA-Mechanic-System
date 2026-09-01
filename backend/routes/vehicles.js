@@ -1,7 +1,18 @@
 const express = require('express');
 const { getDb } = require('../db/db');
+const { requireAccount } = require('../auth');
 
 const router = express.Router();
+
+// Return all vehicles for mechanic diagnostic entries.
+router.get('/all', requireAccount, (req, res) => {
+  if (req.account.role !== 'mechanic') {
+    return res.status(403).json({ error: 'Only mechanic accounts can view all vehicles.' });
+  }
+
+  const vehicles = getDb().prepare('SELECT * FROM vehicles ORDER BY plate').all();
+  res.json({ vehicles });
+});
 
 /**
  * GET /api/vehicles/customer/:customerId

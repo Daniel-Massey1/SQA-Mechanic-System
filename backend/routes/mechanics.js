@@ -3,6 +3,8 @@ const { getDb } = require('../db/db');
 const { requireAccount } = require('../auth');
 
 const router = express.Router();
+const VALID_SEVERITIES = ['low', 'medium', 'high'];
+const VALID_DIAGNOSTIC_STATUSES = ['fixed', 'flagged_for_next_visit'];
 
 // Return approval requests and checklist templates for mechanics.
 router.get('/dashboard', requireAccount, (req, res) => {
@@ -75,6 +77,33 @@ router.post('/bookings/:id/decision', requireAccount, (req, res) => {
     console.error(err);
     return res.status(500).json({ error: 'Unexpected error while updating the booking.' });
   }
+});
+
+// Save a new diagnostic record without changing existing records.
+router.post('/diagnostics', requireAccount, (req, res) => {
+  if (req.account.role !== 'mechanic') {
+    return res.status(403).json({ error: 'Only mechanic accounts can add diagnostic entries.' });
+  }
+
+  const { vehicleId, faultDescription, severity, status } = req.body;
+  if (!Number.isInteger(Number(vehicleId)) || !String(faultDescription || '').trim() || !severity || !status) {
+    return res.status(400).json({ error: 'Vehicle ID, fault description, severity and status are required.' });
+  }
+  if (!VALID_SEVERITIES.includes(severity) || !VALID_DIAGNOSTIC_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'Invalid severity or diagnostic status.' });
+  }
+
+  const db = getDb();
+  const vehicle = db.prepare('SELECT id FROM vehicles WHERE id = ?').get(vehicleId);
+  if (!vehicle) return res.status(404).json({ error: 'Vehicle not found.' });
+
+  const result = db.prepare(
+    `INSERT INTO diagnostic_entries (vehicle_id, fault_description, severity, status)
+     VALUES (?, ?, ?, ?)`
+  ).run(vehicleId, String(faultDescription).trim(), severity, status);
+  const entry = db.prepare('SELECT * FROM diagnostic_entries WHERE id = ?').get(result.lastInsertRowid);
+
+  return res.status(201).json({ entry });
 });
 
 module.exports = router;
