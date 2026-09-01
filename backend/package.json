@@ -9,7 +9,7 @@
     "dev": "node server.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
+      "better-sqlite3": "^12.4.1",
     "cors": "^2.8.5",
     "express": "^4.19.2"
   }

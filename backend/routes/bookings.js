@@ -102,15 +102,16 @@ router.post('/', requireAccount, (req, res) => {
   try {
     const result = db
       .prepare(
+            // New bookings wait for mechanic approval.
             `INSERT INTO bookings (vehicle_id, service_type, slot_start, notes, status, confirmation_ref, booked_by)
-            VALUES (?, ?, ?, ?, 'confirmed', ?, ?)`
+            VALUES (?, ?, ?, ?, 'pending', ?, ?)`
       )
           .run(vehicleId, serviceType, slotStart, String(notes).trim(), confirmationRef, req.account.username);
 
     const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(result.lastInsertRowid);
     return res.status(201).json({ booking });
   } catch (err) {
-    // SQLITE_CONSTRAINT fires when the unique index on confirmed slot_start is violated
+    // A conflicting confirmed slot is rejected by the database unique index.
     if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.code === 'SQLITE_CONSTRAINT') {
       return res.status(409).json({ error: 'That time slot is no longer available. Please choose another slot.' });
     }

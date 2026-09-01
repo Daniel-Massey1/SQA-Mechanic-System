@@ -55,7 +55,7 @@ function getDb() {
       vehicle_id INTEGER NOT NULL,
       service_type TEXT NOT NULL,       -- e.g. 'basic_service', 'full_service', 'wof'
       slot_start TEXT NOT NULL,         -- ISO datetime string
-      status TEXT NOT NULL DEFAULT 'confirmed', -- 'confirmed' | 'cancelled'
+      status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'confirmed' | 'denied' | 'cancelled'
       confirmation_ref TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
@@ -110,6 +110,8 @@ function getDb() {
   db.prepare("UPDATE bookings SET booked_by = 'customer1' WHERE booked_by = ''").run();
 
   seedIfEmpty();
+  // Add standard checklists the first time the database is used.
+  seedChecklistsIfEmpty();
 
   return db;
 }
@@ -144,6 +146,17 @@ function seedIfEmpty() {
     insertBooking.run(v1, 'basic_service', '2026-09-05 09:00:00', 'confirmed', 'REF-SEED-0001', 'customer1');
 
   console.log('Database seeded with sample customers, vehicles, bookings and history.');
+}
+
+function seedChecklistsIfEmpty() {
+  const checklistCount = db.prepare('SELECT COUNT(*) AS n FROM checklists').get().n;
+  if (checklistCount > 0) return;
+
+  // Store each service checklist as a JSON array.
+  const insertChecklist = db.prepare('INSERT INTO checklists (service_type, items_json) VALUES (?, ?)');
+  insertChecklist.run('basic_service', JSON.stringify(['Check engine oil', 'Inspect brakes', 'Check tyre pressure']));
+  insertChecklist.run('full_service', JSON.stringify(['Change engine oil and filter', 'Inspect brakes and suspension', 'Check all fluid levels']));
+  insertChecklist.run('wof', JSON.stringify(['Inspect lights and reflectors', 'Check tyres and brakes', 'Check seat belts and windscreen']));
 }
 
 module.exports = { getDb };

@@ -18,9 +18,10 @@
   </header>
 
   <nav>
-    <button data-view="booking" class="nav-btn active">Book a Service</button>
-    <button data-view="bookings" class="nav-btn">My Bookings</button>
+    <button id="booking-nav-button" data-view="booking" class="nav-btn active">Book a Service</button>
+    <button id="bookings-nav-button" data-view="bookings" class="nav-btn">My Bookings</button>
     <button data-view="history" class="nav-btn">Vehicle History</button>
+    <button id="mechanic-nav-button" data-view="mechanic" class="nav-btn" hidden>Mechanic Portal</button>
   </nav>
 
   <main>
@@ -102,6 +103,14 @@
       <label for="history-vehicle-select">Vehicle</label>
       <select id="history-vehicle-select"></select>
       <div id="history-list"></div>
+    </section>
+
+    <section id="view-mechanic" class="view">
+      <h2>Mechanic Portal &amp; Service Checklists</h2>
+      <h3>Request Approvals</h3>
+      <div id="mechanic-bookings-list"></div>
+      <h3>Service Checklists</h3>
+      <div id="service-checklists-list"></div>
     </section>
   </main>
 
