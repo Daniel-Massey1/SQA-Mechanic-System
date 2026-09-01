@@ -111,6 +111,32 @@
       <div id="mechanic-bookings-list"></div>
       <h3>Service Checklists</h3>
       <div id="service-checklists-list"></div>
+      <h3>Diagnostic Entry</h3>
+      <form id="diagnostic-entry-form">
+        <label for="diagnostic-vehicle-id">Vehicle</label>
+        <select id="diagnostic-vehicle-id" name="vehicleId" required>
+          <option value="">Loading vehicles...</option>
+        </select>
+
+        <label for="fault-description">Fault Description</label>
+        <textarea id="fault-description" name="faultDescription" rows="4" required></textarea>
+
+        <label for="diagnostic-severity">Severity</label>
+        <select id="diagnostic-severity" name="severity" required>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+
+        <label for="diagnostic-status">Status</label>
+        <select id="diagnostic-status" name="status" required>
+          <option value="fixed">Fixed</option>
+          <option value="flagged_for_next_visit">Flagged for Next Visit</option>
+        </select>
+
+        <button type="submit">Save Diagnostic Entry</button>
+        <div id="diagnostic-result" role="status"></div>
+      </form>
     </section>
   </main>
 

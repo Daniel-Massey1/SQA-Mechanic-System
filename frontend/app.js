@@ -320,13 +320,18 @@ async function loadMechanicPortal() {
   checklistsContainer.textContent = '';
 
   try {
-    const res = await fetch(`${API_BASE}/mechanics/dashboard`, { headers: requestHeaders() });
+    const [res, vehiclesRes] = await Promise.all([
+      fetch(`${API_BASE}/mechanics/dashboard`, { headers: requestHeaders() }),
+      fetch(`${API_BASE}/vehicles/all`, { headers: requestHeaders() }),
+    ]);
     const data = await res.json();
+    const vehiclesData = await vehiclesRes.json();
 
     if (!res.ok) {
       container.textContent = data.error || 'Unable to load mechanic appointments.';
       return;
     }
+    loadDiagnosticVehicleOptions(vehiclesData.vehicles || []);
 
     container.innerHTML = '';
     if (data.pendingBookings.length === 0) {
@@ -374,6 +379,19 @@ async function loadMechanicPortal() {
   }
 }
 
+// Fill the diagnostic form with vehicles already in the database.
+function loadDiagnosticVehicleOptions(vehicles) {
+  const select = document.getElementById('diagnostic-vehicle-id');
+  select.innerHTML = '<option value="">Select a vehicle</option>';
+
+  vehicles.forEach((vehicle) => {
+    const option = document.createElement('option');
+    option.value = vehicle.id;
+    option.textContent = `ID ${vehicle.id}: ${vehicle.plate} - ${vehicle.make} ${vehicle.model}`;
+    select.appendChild(option);
+  });
+}
+
 async function decideBooking(bookingId, decision) {
   // Send the mechanic's approval decision to the server.
   const res = await fetch(`${API_BASE}/mechanics/bookings/${bookingId}/decision`, {
@@ -391,11 +409,72 @@ async function decideBooking(bookingId, decision) {
   loadMechanicPortal();
 }
 
+// Save a new diagnostic entry. Existing entries are never changed here.
+document.getElementById('diagnostic-entry-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const resultBox = document.getElementById('diagnostic-result');
+  const formData = new FormData(form);
+
+  try {
+    const res = await fetch(`${API_BASE}/mechanics/diagnostics`, {
+      method: 'POST',
+      headers: requestHeaders(true),
+      body: JSON.stringify({
+        vehicleId: Number(formData.get('vehicleId')),
+        faultDescription: formData.get('faultDescription'),
+        severity: formData.get('severity'),
+        status: formData.get('status'),
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      resultBox.textContent = data.error || 'Unable to save diagnostic entry.';
+      resultBox.className = 'result-error';
+      return;
+    }
+
+    resultBox.textContent = `Diagnostic entry #${data.entry.id} saved.`;
+    resultBox.className = 'result-success';
+    form.reset();
+  } catch (err) {
+    resultBox.textContent = 'Could not reach the server. Please try again.';
+    resultBox.className = 'result-error';
+  }
+});
+
 // --- Vehicle History view -------------------------------------------------
 async function loadHistoryVehicleOptions() {
+  // Mechanics can review history for every vehicle in the database.
+  if (loggedInAccount?.role === 'mechanic') {
+    // This route returns all vehicles for mechanic users.
+    const res = await fetch(`${API_BASE}/vehicles/all`, { headers: requestHeaders() });
+    const data = await res.json();
+    loadHistoryVehicleSelect(data.vehicles || []);
+    const select = document.getElementById('history-vehicle-select');
+    // Load history for the first vehicle in the list.
+    if (select.value) loadHistory(select.value);
+    return;
+  }
+
+  // Customers only see vehicles linked to their account.
   await loadVehicleOptions('history-vehicle-select');
   const select = document.getElementById('history-vehicle-select');
   if (select.value) loadHistory(select.value);
+}
+
+// Fill the Vehicle History selector with the available vehicles.
+function loadHistoryVehicleSelect(vehicles) {
+  const select = document.getElementById('history-vehicle-select');
+  select.innerHTML = '';
+
+  vehicles.forEach((vehicle) => {
+    const option = document.createElement('option');
+    option.value = vehicle.id;
+    option.textContent = `${vehicle.plate} - ${vehicle.make} ${vehicle.model}`;
+    select.appendChild(option);
+  });
 }
 
 document.getElementById('history-vehicle-select').addEventListener('change', (e) => {
