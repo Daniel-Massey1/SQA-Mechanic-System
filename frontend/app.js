@@ -55,6 +55,7 @@ function closeLoginModal() {
 function updateAccountControls() {
   const isLoggedIn = Boolean(loggedInAccount);
   const isMechanic = loggedInAccount?.role === 'mechanic';
+  const isManager = loggedInAccount?.role === 'manager';
   accountButton.textContent = isLoggedIn ? 'Log out' : 'Log in';
   accountName.textContent = isLoggedIn ? loggedInAccount.username : '';
   accountName.hidden = !isLoggedIn;
@@ -63,6 +64,7 @@ function updateAccountControls() {
   document.getElementById('bookings-nav-button').textContent = isMechanic ? 'Upcoming Bookings' : 'My Bookings';
   document.getElementById('completed-nav-button').hidden = !isMechanic;
   document.getElementById('mechanic-nav-button').hidden = !isMechanic;
+  document.getElementById('manager-nav-button').hidden = loggedInAccount?.role !== 'manager';
 }
 
 accountButton.addEventListener('click', () => {
@@ -115,6 +117,7 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
     if (btn.dataset.view === 'completed') loadCompletedBookings();
     if (btn.dataset.view === 'history') loadHistoryVehicleOptions();
     if (btn.dataset.view === 'mechanic') loadMechanicPortal();
+    if (btn.dataset.view === 'manager') loadManagerPortal();
   });
 });
 
@@ -572,6 +575,138 @@ document.getElementById('diagnostic-entry-form').addEventListener('submit', asyn
     resultBox.textContent = 'Could not reach the server. Please try again.';
     resultBox.className = 'result-error';
   }
+});
+
+// --- Manager Dashboard ------------------------------------------------------
+function formatMinutes(minutes) {
+  if (minutes === null || minutes === undefined) return 'N/A';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+}
+
+function formatPercent(value) {
+  return value === null || value === undefined ? 'N/A' : `${value}%`;
+}
+
+async function loadManagerPortal() {
+  const filterSelect = document.getElementById('manager-mechanic-filter');
+  const selectedMechanic = filterSelect.value;
+  const jobsContainer = document.getElementById('manager-jobs-list');
+  jobsContainer.textContent = 'Loading...';
+
+  try {
+    const query = selectedMechanic ? `?mechanic=${encodeURIComponent(selectedMechanic)}` : '';
+    const [dashboardRes, jobsRes] = await Promise.all([
+      fetch(`${API_BASE}/manager/dashboard${query}`, { headers: requestHeaders() }),
+      fetch(`${API_BASE}/manager/jobs${query}`, { headers: requestHeaders() }),
+    ]);
+    const dashboardData = await dashboardRes.json();
+    const jobsData = await jobsRes.json();
+
+    if (!dashboardRes.ok) {
+      jobsContainer.textContent = dashboardData.error || 'Unable to load the manager dashboard.';
+      return;
+    }
+
+    // Keep the current selection when repopulating the filter dropdown.
+    filterSelect.innerHTML = '<option value="">All mechanics</option>';
+    dashboardData.mechanics.forEach((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      filterSelect.appendChild(option);
+    });
+    filterSelect.value = selectedMechanic;
+
+    const totals = dashboardData.totals;
+    document.getElementById('stat-total-completed').textContent = totals.totalCompletedJobs;
+    document.getElementById('stat-incomplete').textContent = totals.incompleteChecklistCount;
+    document.getElementById('stat-avg-time').textContent = formatMinutes(totals.averageRepairTimeMinutes);
+    document.getElementById('stat-acceptance').textContent = formatPercent(totals.acceptanceRatePercent);
+    document.getElementById('stat-compliance').textContent = formatPercent(totals.checklistCompliancePercent);
+
+    jobsContainer.innerHTML = '';
+    if (jobsData.jobs.length === 0) {
+      jobsContainer.textContent = 'No completed jobs yet.';
+      return;
+    }
+    jobsData.jobs.forEach((job) => {
+      const card = document.createElement('div');
+      card.className = 'booking-card job-card';
+      card.innerHTML = `
+        <strong>${job.plate} - ${job.make} ${job.model}</strong><br />
+        Customer: ${job.customer_name}<br />
+        Mechanic: ${job.mechanic_name} — ${job.service_type.replace('_', ' ')}<br />
+        Completed: ${new Date(job.completed_at.replace(' ', 'T')).toLocaleString()}
+        <span class="badge badge-completed">${job.job_status}</span>
+      `;
+      card.addEventListener('click', () => openJobDetails(job.job_id));
+      jobsContainer.appendChild(card);
+    });
+  } catch (err) {
+    jobsContainer.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+document.getElementById('manager-mechanic-filter').addEventListener('change', loadManagerPortal);
+
+async function openJobDetails(jobId) {
+  const modal = document.getElementById('job-details-modal');
+  const content = document.getElementById('job-modal-content');
+  content.textContent = 'Loading...';
+  modal.hidden = false;
+
+  try {
+    const res = await fetch(`${API_BASE}/manager/jobs/${jobId}`, { headers: requestHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      content.textContent = data.error || 'Unable to load job details.';
+      return;
+    }
+
+    const job = data.job;
+    content.innerHTML = '';
+
+    const details = [
+      ['Vehicle', `${job.plate} - ${job.make} ${job.model}`],
+      ['Customer', job.customer_name],
+      ['Mechanic', job.mechanic_name],
+      ['Service', job.service_type.replace('_', ' ')],
+      ['Duration', formatMinutes(job.durationMinutes)],
+      ['Reference', job.confirmation_ref],
+    ];
+    details.forEach(([label, value]) => {
+      const row = document.createElement('p');
+      const labelElement = document.createElement('strong');
+      labelElement.textContent = `${label}: `;
+      row.append(labelElement, value);
+      content.appendChild(row);
+    });
+
+    const checklistHeading = document.createElement('p');
+    checklistHeading.innerHTML = '<strong>Checklist:</strong>';
+    content.appendChild(checklistHeading);
+
+    const list = document.createElement('ul');
+    job.checklistItems.forEach(({ item }) => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      list.appendChild(li);
+    });
+    content.appendChild(list);
+  } catch (err) {
+    content.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+function closeJobDetails() {
+  document.getElementById('job-details-modal').hidden = true;
+}
+
+document.getElementById('close-job-modal').addEventListener('click', closeJobDetails);
+document.getElementById('job-details-modal').addEventListener('click', (event) => {
+  if (event.target.id === 'job-details-modal') closeJobDetails();
 });
 
 // --- Vehicle History view -------------------------------------------------
