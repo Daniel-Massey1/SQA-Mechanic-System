@@ -88,7 +88,7 @@ button {
 .btn-row { display: flex; gap: 0.5rem; }
 .btn-row button { flex: 1; }
 
-#booking-result, #diagnostic-result, .booking-card, .history-card {
+#booking-result, #diagnostic-result, #checklist-result, .booking-card, .history-card {
   margin-top: 1rem;
   padding: 0.8rem;
   border-radius: 6px;
@@ -110,6 +110,7 @@ button {
   font-weight: 600;
 }
 .badge-confirmed { background: #ecfdf5; color: #065f46; }
+.badge-completed { background: #dbeafe; color: #1e40af; }
 .badge-cancelled { background: #f3f4f6; color: #6b7280; }
 .badge-pending { background: #fffbeb; color: #92400e; }
 .badge-denied { background: #fef2f2; color: #991b1b; }
@@ -131,6 +132,11 @@ button {
 }
 
 .checklist-card ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+
+.checklist-items { margin-top: 1rem; }
+.checklist-item { display: flex; align-items: center; gap: 0.5rem; font-weight: 400; }
+.checklist-item input { width: auto; margin: 0; }
+.completion-notice { margin: 0.75rem 0 0; color: #065f46; font-weight: 600; }
 
 .modal-backdrop {
   position: fixed;
