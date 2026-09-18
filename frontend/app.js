@@ -13,7 +13,16 @@ const MOCK_ACCOUNTS = [
   { username: 'manager1', password: '123', role: 'manager' },
 ];
 
+const STORED_ACCOUNT_KEY = 'mechanics-portal-account';
 let loggedInAccount = null;
+
+function restoreLoggedInAccount() {
+  const storedUsername = localStorage.getItem(STORED_ACCOUNT_KEY);
+  if (!storedUsername) return;
+
+  loggedInAccount = MOCK_ACCOUNTS.find((account) => account.username === storedUsername) || null;
+  if (!loggedInAccount) localStorage.removeItem(STORED_ACCOUNT_KEY);
+}
 
 function requestHeaders(includeJson = false) {
   const headers = includeJson ? { 'Content-Type': 'application/json' } : {};
@@ -70,6 +79,7 @@ function updateAccountControls() {
 accountButton.addEventListener('click', () => {
   if (loggedInAccount) {
     loggedInAccount = null;
+    localStorage.removeItem(STORED_ACCOUNT_KEY);
     updateAccountControls();
     if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
     return;
@@ -96,6 +106,7 @@ loginForm.addEventListener('submit', (event) => {
   }
 
   loggedInAccount = account;
+  localStorage.setItem(STORED_ACCOUNT_KEY, account.username);
   updateAccountControls();
   closeLoginModal();
   loadVehicleOptions('vehicle-select');
@@ -778,4 +789,6 @@ async function loadHistory(vehicleId) {
 }
 
 // --- Initial load ----------------------------------------------------------
+restoreLoggedInAccount();
+updateAccountControls();
 loadVehicleOptions('vehicle-select');
