@@ -47,16 +47,24 @@ router.get('/:vehicleId/history', (req, res) => {
     return res.status(404).json({ error: 'Vehicle not found.' });
   }
 
+  // Every entry is returned (edits are never hidden or deleted); root_entry_id
+  // groups a lineage together and is_superseded flags older, edited-over versions
+  // so the frontend can collapse them into a dropdown instead of losing them.
   const history = db
     .prepare(
-      `SELECT * FROM diagnostic_entries
+      `SELECT de.*,
+              COALESCE(de.supersedes_entry_id, de.id) AS root_entry_id,
+              EXISTS (
+                SELECT 1 FROM diagnostic_entries de2
+                WHERE COALESCE(de2.supersedes_entry_id, de2.id) = COALESCE(de.supersedes_entry_id, de.id)
+                  AND de2.id > de.id
+              ) AS is_superseded
+       FROM diagnostic_entries de
        WHERE vehicle_id = ?
-         AND id NOT IN (
-           SELECT supersedes_entry_id FROM diagnostic_entries WHERE supersedes_entry_id IS NOT NULL
-         )
        ORDER BY datetime(created_at) DESC`
     )
-    .all(vehicleId);
+    .all(vehicleId)
+    .map((entry) => ({ ...entry, is_superseded: Boolean(entry.is_superseded) }));
 
   if (history.length === 0) {
     return res.json({ vehicle, history: [], message: 'No repair history recorded for this vehicle yet.' });

@@ -774,23 +774,66 @@ async function loadHistory(vehicleId) {
   }
 
   container.innerHTML = '';
+
+  // Group entries by lineage so each edited entry has one visible card
+  // with a click-to-expand dropdown for its older versions.
+  const groups = new Map();
   data.history.forEach((entry) => {
+    if (!groups.has(entry.root_entry_id)) groups.set(entry.root_entry_id, []);
+    groups.get(entry.root_entry_id).push(entry);
+  });
+
+  const sortedGroups = [...groups.values()].sort(
+    (a, b) => new Date(b[0].created_at.replace(' ', 'T')) - new Date(a[0].created_at.replace(' ', 'T'))
+  );
+
+  sortedGroups.forEach((groupEntries) => {
+    // The non-superseded entry is the current version; fall back to the first
+    // entry so a lineage never disappears if every row were somehow flagged.
+    const current = groupEntries.find((entry) => !entry.is_superseded) || groupEntries[0];
+    const olderVersions = groupEntries.filter((entry) => entry.id !== current.id);
+
     const card = document.createElement('div');
     card.className = 'history-card';
-    const badgeClass = entry.status === 'fixed' ? 'badge-fixed' : 'badge-flagged';
+    const badgeClass = current.status === 'fixed' ? 'badge-fixed' : 'badge-flagged';
 
     card.innerHTML = `
-      <strong>${entry.fault_description}</strong>
-      <span class="badge ${badgeClass}">${entry.status.replace('_', ' ')}</span><br />
-      Severity: ${entry.severity} — ${new Date(entry.created_at.replace(' ', 'T')).toLocaleString()}
+      <strong>${current.fault_description}</strong>
+      <span class="badge ${badgeClass}">${current.status.replace('_', ' ')}</span><br />
+      Severity: ${current.severity} — ${new Date(current.created_at.replace(' ', 'T')).toLocaleString()}
     `;
 
+    // Only the current (non-superseded) version of an entry can be edited;
+    // older versions stay visible for the record but are read-only.
     if (loggedInAccount?.role === 'mechanic') {
       const editBtn = document.createElement('button');
       editBtn.textContent = 'Edit';
       editBtn.className = 'details-btn';
-      editBtn.addEventListener('click', () => openDiagnosticEditModal(entry, vehicleId));
+      editBtn.addEventListener('click', () => openDiagnosticEditModal(current, vehicleId));
       card.appendChild(editBtn);
+    }
+
+    if (olderVersions.length > 0) {
+      const details = document.createElement('details');
+      details.className = 'history-edit-trail';
+
+      const summary = document.createElement('summary');
+      summary.textContent = `${olderVersions.length} earlier ${olderVersions.length === 1 ? 'version' : 'versions'}`;
+      details.appendChild(summary);
+
+      olderVersions.forEach((entry) => {
+        const oldBadgeClass = entry.status === 'fixed' ? 'badge-fixed' : 'badge-flagged';
+        const oldEntry = document.createElement('div');
+        oldEntry.className = 'history-card history-card-old';
+        oldEntry.innerHTML = `
+          <strong>${entry.fault_description}</strong>
+          <span class="badge ${oldBadgeClass}">${entry.status.replace('_', ' ')}</span><br />
+          Severity: ${entry.severity} — ${new Date(entry.created_at.replace(' ', 'T')).toLocaleString()}
+        `;
+        details.appendChild(oldEntry);
+      });
+
+      card.appendChild(details);
     }
 
     container.appendChild(card);
