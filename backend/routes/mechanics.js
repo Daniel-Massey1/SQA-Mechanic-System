@@ -186,4 +186,35 @@ router.post('/diagnostics', requireAccount, (req, res) => {
   return res.status(201).json({ entry });
 });
 
+// Edit a diagnostic entry by appending a new version that supersedes the original
+// (append-only trail: the old row is kept as-is, so history is never rewritten).
+router.put('/diagnostics/:id', requireAccount, (req, res) => {
+  if (req.account.role !== 'mechanic') {
+    return res.status(403).json({ error: 'Only mechanic accounts can edit diagnostic entries.' });
+  }
+
+  const { faultDescription, severity, status } = req.body;
+  if (!String(faultDescription || '').trim() || !severity || !status) {
+    return res.status(400).json({ error: 'Fault description, severity and status are required.' });
+  }
+  if (!VALID_SEVERITIES.includes(severity) || !VALID_DIAGNOSTIC_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'Invalid severity or diagnostic status.' });
+  }
+
+  const db = getDb();
+  const original = db.prepare('SELECT * FROM diagnostic_entries WHERE id = ?').get(req.params.id);
+  if (!original) return res.status(404).json({ error: 'Diagnostic entry not found.' });
+
+  // Chain edits back to the root entry rather than the most recent edit.
+  const rootId = original.supersedes_entry_id || original.id;
+
+  const result = db.prepare(
+    `INSERT INTO diagnostic_entries (vehicle_id, fault_description, severity, status, supersedes_entry_id)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(original.vehicle_id, String(faultDescription).trim(), severity, status, rootId);
+  const entry = db.prepare('SELECT * FROM diagnostic_entries WHERE id = ?').get(result.lastInsertRowid);
+
+  return res.json({ entry });
+});
+
 module.exports = router;
