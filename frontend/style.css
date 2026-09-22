@@ -140,6 +140,22 @@ button:hover { background: #a30613; }
   margin-bottom: 0.6rem;
 }
 
+.history-edit-trail {
+  margin-top: 0.6rem;
+}
+.history-edit-trail summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.history-card-old {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+  opacity: 0.75;
+  border-left-color: var(--muted);
+}
+
 .badge {
   display: inline-block;
   padding: 0.15rem 0.5rem;
@@ -154,6 +170,7 @@ button:hover { background: #a30613; }
 .badge-denied { background: var(--red-soft); color: #9d0715; }
 .badge-flagged { background: var(--warning-soft); color: var(--warning); }
 .badge-fixed { background: var(--success-soft); color: #205c24; }
+.badge-edited { background: #eef1f1; color: var(--muted); }
 
 .cancel-btn { background: var(--action-red); margin-top: 0.5rem; }
 .cancel-btn:hover { background: #a30613; }
