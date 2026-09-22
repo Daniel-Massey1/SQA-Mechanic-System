@@ -51,6 +51,9 @@ router.get('/:vehicleId/history', (req, res) => {
     .prepare(
       `SELECT * FROM diagnostic_entries
        WHERE vehicle_id = ?
+         AND id NOT IN (
+           SELECT supersedes_entry_id FROM diagnostic_entries WHERE supersedes_entry_id IS NOT NULL
+         )
        ORDER BY datetime(created_at) DESC`
     )
     .all(vehicleId);

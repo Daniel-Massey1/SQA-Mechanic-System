@@ -784,9 +784,81 @@ async function loadHistory(vehicleId) {
       <span class="badge ${badgeClass}">${entry.status.replace('_', ' ')}</span><br />
       Severity: ${entry.severity} — ${new Date(entry.created_at.replace(' ', 'T')).toLocaleString()}
     `;
+
+    if (loggedInAccount?.role === 'mechanic') {
+      const editBtn = document.createElement('button');
+      editBtn.textContent = 'Edit';
+      editBtn.className = 'details-btn';
+      editBtn.addEventListener('click', () => openDiagnosticEditModal(entry, vehicleId));
+      card.appendChild(editBtn);
+    }
+
     container.appendChild(card);
   });
 }
+
+// --- Diagnostic entry editing (mechanic only) ------------------------------
+let editingDiagnosticId = null;
+let editingDiagnosticVehicleId = null;
+
+function openDiagnosticEditModal(entry, vehicleId) {
+  editingDiagnosticId = entry.id;
+  editingDiagnosticVehicleId = vehicleId;
+
+  const resultBox = document.getElementById('diagnostic-edit-result');
+  resultBox.textContent = '';
+  resultBox.className = '';
+
+  document.getElementById('edit-fault-description').value = entry.fault_description;
+  document.getElementById('edit-diagnostic-severity').value = entry.severity;
+  document.getElementById('edit-diagnostic-status').value = entry.status;
+
+  document.getElementById('diagnostic-edit-modal').hidden = false;
+}
+
+function closeDiagnosticEditModal() {
+  document.getElementById('diagnostic-edit-modal').hidden = true;
+  editingDiagnosticId = null;
+  editingDiagnosticVehicleId = null;
+}
+
+document.getElementById('close-diagnostic-edit-modal').addEventListener('click', closeDiagnosticEditModal);
+document.getElementById('diagnostic-edit-modal').addEventListener('click', (event) => {
+  if (event.target.id === 'diagnostic-edit-modal') closeDiagnosticEditModal();
+});
+
+document.getElementById('diagnostic-edit-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const resultBox = document.getElementById('diagnostic-edit-result');
+  const formData = new FormData(form);
+
+  try {
+    const res = await fetch(`${API_BASE}/mechanics/diagnostics/${editingDiagnosticId}`, {
+      method: 'PUT',
+      headers: requestHeaders(true),
+      body: JSON.stringify({
+        faultDescription: formData.get('faultDescription'),
+        severity: formData.get('severity'),
+        status: formData.get('status'),
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      resultBox.textContent = data.error || 'Unable to save changes.';
+      resultBox.className = 'result-error';
+      return;
+    }
+
+    const vehicleId = editingDiagnosticVehicleId;
+    closeDiagnosticEditModal();
+    loadHistory(vehicleId);
+  } catch (err) {
+    resultBox.textContent = 'Could not reach the server. Please try again.';
+    resultBox.className = 'result-error';
+  }
+});
 
 // --- Initial load ----------------------------------------------------------
 restoreLoggedInAccount();

@@ -241,6 +241,36 @@
     </section>
   </div>
 
+  <div id="diagnostic-edit-modal" class="modal-backdrop" hidden>
+    <section class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="diagnostic-edit-title">
+      <div class="modal-header">
+        <h2 id="diagnostic-edit-title">Edit Diagnostic Entry</h2>
+        <button id="close-diagnostic-edit-modal" class="modal-close" type="button" aria-label="Close edit diagnostic entry">&times;</button>
+      </div>
+      <form id="diagnostic-edit-form">
+        <label for="edit-fault-description">Fault Description</label>
+        <textarea id="edit-fault-description" name="faultDescription" rows="4" required></textarea>
+
+        <label for="edit-diagnostic-severity">Severity</label>
+        <select id="edit-diagnostic-severity" name="severity" required>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+
+        <label for="edit-diagnostic-status">Status</label>
+        <select id="edit-diagnostic-status" name="status" required>
+          <option value="fixed">Fixed</option>
+          <option value="flagged_for_next_visit">Flagged for Next Visit</option>
+        </select>
+
+        <button type="submit">Save Changes</button>
+        <div id="diagnostic-edit-result" role="status"></div>
+      </form>
+    </section>
+  </div>
+
+
   <script src="app.js"></script>
 </body>
 </html>
