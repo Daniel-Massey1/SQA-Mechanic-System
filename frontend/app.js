@@ -161,6 +161,11 @@ document.getElementById('to-step-3').addEventListener('click', () => {
     return;
   }
 
+  if (new Date(slotTime).getTime() <= Date.now()) {
+    alert('Please choose a future booking time.');
+    return;
+  }
+
   bookingState.serviceType = serviceType;
   bookingState.slotStart = slotTime.replace('T', ' ') + ':00';
   bookingState.notes = document.getElementById('booking-notes').value.trim();
@@ -791,4 +796,6 @@ async function loadHistory(vehicleId) {
 // --- Initial load ----------------------------------------------------------
 restoreLoggedInAccount();
 updateAccountControls();
+const slotInput = document.getElementById('slot-time');
+slotInput.min = new Date(Date.now() + 60 * 1000).toISOString().slice(0, 16);
 loadVehicleOptions('vehicle-select');
