@@ -76,10 +76,17 @@ function updateAccountControls() {
   document.getElementById('manager-nav-button').hidden = loggedInAccount?.role !== 'manager';
 }
 
+function clearPrivateVehicleData() {
+  document.getElementById('vehicle-select').innerHTML = '<option value="">Log in to view vehicles</option>';
+  document.getElementById('history-vehicle-select').innerHTML = '<option value="">Log in to view vehicles</option>';
+  document.getElementById('history-list').textContent = 'Log in to view vehicle history.';
+}
+
 accountButton.addEventListener('click', () => {
   if (loggedInAccount) {
     loggedInAccount = null;
     localStorage.removeItem(STORED_ACCOUNT_KEY);
+    clearPrivateVehicleData();
     updateAccountControls();
     if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
     return;
@@ -209,10 +216,17 @@ document.getElementById('confirm-booking').addEventListener('click', async () =>
 
 // --- Load vehicle options for both the booking flow and history view ----
 async function loadVehicleOptions(selectElementId) {
-  const res = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`);
+  const res = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`, {
+    headers: requestHeaders(),
+  });
   const data = await res.json();
   const select = document.getElementById(selectElementId);
   select.innerHTML = '';
+
+  if (!res.ok) {
+    select.innerHTML = '<option value="">Log in to view vehicles</option>';
+    return;
+  }
 
   if (data.vehicles.length === 0) {
     select.innerHTML = '<option value="">No vehicles found</option>';
@@ -770,8 +784,15 @@ async function loadHistory(vehicleId) {
   }
   container.textContent = 'Loading...';
 
-  const res = await fetch(`${API_BASE}/vehicles/${vehicleId}/history`);
+  const res = await fetch(`${API_BASE}/vehicles/${vehicleId}/history`, {
+    headers: requestHeaders(),
+  });
   const data = await res.json();
+
+  if (!res.ok) {
+    container.textContent = data.error || 'Unable to load vehicle history.';
+    return;
+  }
 
   if (data.history.length === 0) {
     container.textContent = data.message || 'No history found.';
@@ -798,4 +819,4 @@ restoreLoggedInAccount();
 updateAccountControls();
 const slotInput = document.getElementById('slot-time');
 slotInput.min = new Date(Date.now() + 60 * 1000).toISOString().slice(0, 16);
-loadVehicleOptions('vehicle-select');
+if (loggedInAccount) loadVehicleOptions('vehicle-select');
