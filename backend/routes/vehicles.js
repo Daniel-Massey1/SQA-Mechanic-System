@@ -18,9 +18,14 @@ router.get('/all', requireAccount, (req, res) => {
  * GET /api/vehicles/customer/:customerId
  * Returns all vehicles belonging to a customer, for the "select vehicle" step of booking.
  */
-router.get('/customer/:customerId', (req, res) => {
+router.get('/customer/:customerId', requireAccount, (req, res) => {
   const db = getDb();
   const { customerId } = req.params;
+
+  if (req.account.role === 'customer' && String(req.account.customerId) !== String(customerId)) {
+    console.warn(`[ACCESS DENIED] ${req.account.username} attempted to view customer ${customerId} vehicles.`);
+    return res.status(403).json({ error: 'You can only view vehicles linked to your account.' });
+  }
 
   const vehicles = db
     .prepare('SELECT * FROM vehicles WHERE customer_id = ?')
@@ -38,13 +43,18 @@ router.get('/customer/:customerId', (req, res) => {
  *  - "A customer with no recorded vehicle history sees a stated empty state
  *     rather than an error."
  */
-router.get('/:vehicleId/history', (req, res) => {
+router.get('/:vehicleId/history', requireAccount, (req, res) => {
   const db = getDb();
   const { vehicleId } = req.params;
 
   const vehicle = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(vehicleId);
   if (!vehicle) {
     return res.status(404).json({ error: 'Vehicle not found.' });
+  }
+
+  if (req.account.role === 'customer' && vehicle.customer_id !== req.account.customerId) {
+    console.warn(`[ACCESS DENIED] ${req.account.username} attempted to view vehicle ${vehicleId} history.`);
+    return res.status(403).json({ error: 'You can only view history for your own vehicles.' });
   }
 
   const history = db

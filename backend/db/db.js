@@ -84,6 +84,10 @@ function getDb() {
       ON bookings (slot_start)
       WHERE status = 'confirmed';
 
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_slot
+      ON bookings (slot_start)
+      WHERE status IN ('pending', 'confirmed');
+
     -- Stub tables for mechanic/manager sides. Left minimal on purpose.
     CREATE TABLE IF NOT EXISTS checklists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
