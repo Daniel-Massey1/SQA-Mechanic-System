@@ -7,6 +7,15 @@ const router = express.Router();
 const VALID_SERVICE_TYPES = ['basic_service', 'full_service', 'wof'];
 const CANCELLATION_WINDOW_HOURS = 24;
 
+function parseSlotStart(slotStart) {
+  if (typeof slotStart !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(slotStart)) {
+    return null;
+  }
+
+  const parsed = new Date(slotStart.replace(' ', 'T'));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function generateConfirmationRef() {
   return `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
@@ -85,6 +94,14 @@ router.post('/', requireAccount, (req, res) => {
     return res.status(400).json({ error: 'vehicleId, serviceType and slotStart are all required.' });
   }
 
+  const parsedSlotStart = parseSlotStart(slotStart);
+  if (!parsedSlotStart) {
+    return res.status(400).json({ error: 'slotStart must be a valid date and time.' });
+  }
+  if (parsedSlotStart.getTime() <= Date.now()) {
+    return res.status(400).json({ error: 'Bookings must be made for a future time.' });
+  }
+
   if (!VALID_SERVICE_TYPES.includes(serviceType)) {
     return res.status(400).json({ error: `Invalid service type. Must be one of: ${VALID_SERVICE_TYPES.join(', ')}` });
   }
@@ -95,6 +112,14 @@ router.post('/', requireAccount, (req, res) => {
   }
   if (vehicle.customer_id !== req.account.customerId) {
     return res.status(403).json({ error: 'You can only book a vehicle belonging to your account.' });
+  }
+
+  const existingBooking = db.prepare(
+    `SELECT id FROM bookings
+     WHERE slot_start = ? AND status IN ('pending', 'confirmed')`
+  ).get(slotStart);
+  if (existingBooking) {
+    return res.status(409).json({ error: 'That time slot is no longer available. Please choose another slot.' });
   }
 
   const confirmationRef = generateConfirmationRef();
