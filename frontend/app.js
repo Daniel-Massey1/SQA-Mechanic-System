@@ -63,17 +63,20 @@ function closeLoginModal() {
 
 function updateAccountControls() {
   const isLoggedIn = Boolean(loggedInAccount);
+  const isCustomer = loggedInAccount?.role === 'customer';
   const isMechanic = loggedInAccount?.role === 'mechanic';
   const isManager = loggedInAccount?.role === 'manager';
   accountButton.textContent = isLoggedIn ? 'Log out' : 'Log in';
   accountName.textContent = isLoggedIn ? loggedInAccount.username : '';
   accountName.hidden = !isLoggedIn;
   // Mechanics use approvals and their schedule instead of customer booking.
-  document.getElementById('booking-nav-button').hidden = isMechanic;
+  document.getElementById('booking-nav-button').hidden = !isCustomer;
   document.getElementById('bookings-nav-button').textContent = isMechanic ? 'Upcoming Bookings' : 'My Bookings';
   document.getElementById('completed-nav-button').hidden = !isMechanic;
   document.getElementById('mechanic-nav-button').hidden = !isMechanic;
   document.getElementById('manager-nav-button').hidden = loggedInAccount?.role !== 'manager';
+  document.getElementById('booking-login-message').hidden = isCustomer;
+  document.getElementById('booking-customer-content').hidden = !isCustomer;
 }
 
 function clearPrivateVehicleData() {
@@ -116,7 +119,7 @@ loginForm.addEventListener('submit', (event) => {
   localStorage.setItem(STORED_ACCOUNT_KEY, account.username);
   updateAccountControls();
   closeLoginModal();
-  loadVehicleOptions('vehicle-select');
+  if (account.role === 'customer') loadVehicleOptions('vehicle-select');
   if (account.role === 'mechanic') {
     document.getElementById('bookings-nav-button').click();
   }
