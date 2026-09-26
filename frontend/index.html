@@ -50,48 +50,51 @@
     <!-- Step-based booking flow: select vehicle -> select service+slot -> confirm -->
     <section id="view-booking" class="view active">
       <h2>Book a Service</h2>
-      <div class="stepper">
-        <span class="step active" data-step="1">1. Vehicle</span>
-        <span class="step" data-step="2">2. Service &amp; Slot</span>
-        <span class="step" data-step="3">3. Confirm</span>
-      </div>
-
-      <div id="step-1" class="step-panel active">
-        <label for="vehicle-select">Select your vehicle</label>
-        <select id="vehicle-select"></select>
-        <button id="to-step-2">Next</button>
-      </div>
-
-      <div id="step-2" class="step-panel">
-        <label for="service-type">Service type</label>
-        <select id="service-type">
-          <option value="basic_service">Basic Service</option>
-          <option value="full_service">Full Service</option>
-          <option value="wof">WOF</option>
-        </select>
-
-        <label for="slot-time">Available time slot</label>
-        <input type="datetime-local" id="slot-time" />
-
-        <label for="booking-notes">Additional notes</label>
-        <textarea id="booking-notes" rows="4" placeholder="Tell us anything we should know about your vehicle or service needs."></textarea>
-
-        <div class="btn-row">
-          <button id="back-to-1">Back</button>
-          <button id="to-step-3">Next</button>
+      <p id="booking-login-message" class="result-error" hidden>Please log in as a customer to book a service.</p>
+      <div id="booking-customer-content" hidden>
+        <div class="stepper">
+          <span class="step active" data-step="1">1. Vehicle</span>
+          <span class="step" data-step="2">2. Service &amp; Slot</span>
+          <span class="step" data-step="3">3. Confirm</span>
         </div>
-      </div>
 
-      <div id="step-3" class="step-panel">
-        <h3>Confirm your booking</h3>
-        <p id="confirm-summary"></p>
-        <div class="btn-row">
-          <button id="back-to-2">Back</button>
-          <button id="confirm-booking">Confirm Booking</button>
+        <div id="step-1" class="step-panel active">
+          <label for="vehicle-select">Select your vehicle</label>
+          <select id="vehicle-select"></select>
+          <button id="to-step-2">Next</button>
         </div>
-      </div>
 
-      <div id="booking-result"></div>
+        <div id="step-2" class="step-panel">
+          <label for="service-type">Service type</label>
+          <select id="service-type">
+            <option value="basic_service">Basic Service</option>
+            <option value="full_service">Full Service</option>
+            <option value="wof">WOF</option>
+          </select>
+
+          <label for="slot-time">Available time slot</label>
+          <input type="datetime-local" id="slot-time" />
+
+          <label for="booking-notes">Additional notes</label>
+          <textarea id="booking-notes" rows="4" placeholder="Tell us anything we should know about your vehicle or service needs."></textarea>
+
+          <div class="btn-row">
+            <button id="back-to-1">Back</button>
+            <button id="to-step-3">Next</button>
+          </div>
+        </div>
+
+        <div id="step-3" class="step-panel">
+          <h3>Confirm your booking</h3>
+          <p id="confirm-summary"></p>
+          <div class="btn-row">
+            <button id="back-to-2">Back</button>
+            <button id="confirm-booking">Confirm Booking</button>
+          </div>
+        </div>
+
+        <div id="booking-result"></div>
+      </div>
     </section>
 
     <!-- My bookings + cancellation -->
