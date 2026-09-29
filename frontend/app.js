@@ -29,6 +29,17 @@ function requestHeaders(includeJson = false) {
   return headers;
 }
 
+// Treat database text as untrusted whenever it is interpolated into a markup template.
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character]);
+}
+
 function getCurrentCustomerId() {
   return loggedInAccount?.customerId || DEFAULT_CUSTOMER_ID;
 }
@@ -56,9 +67,24 @@ function openLoginModal() {
 
 document.getElementById('landing-login-button').addEventListener('click', openLoginModal);
 document.getElementById('landing-primary-login').addEventListener('click', openLoginModal);
-// Keep registration clearly marked as unavailable until account creation exists.
+const signupForm = document.getElementById('signup-form');
+const signupError = document.getElementById('signup-error');
+
+function closeSignupPage() {
+  document.body.classList.remove('signup-open');
+  signupForm.reset();
+  signupError.textContent = '';
+}
+
 document.getElementById('landing-signup-button').addEventListener('click', () => {
-  document.getElementById('signup-message').textContent = 'Online sign up is coming soon. Please contact the workshop to create an account.';
+  document.getElementById('signup-message').textContent = '';
+  signupError.textContent = '';
+  document.body.classList.add('signup-open');
+});
+document.getElementById('signup-back-button').addEventListener('click', closeSignupPage);
+document.getElementById('signup-login-button').addEventListener('click', () => {
+  closeSignupPage();
+  openLoginModal();
 });
 
 function closeLoginModal() {
@@ -87,6 +113,25 @@ function updateAccountControls() {
   document.getElementById('booking-customer-content').hidden = !isCustomer;
 }
 
+function acceptLoginSession(data) {
+  authToken = data.token;
+  loggedInAccount = data.account;
+  localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ token: authToken, account: loggedInAccount }));
+  document.body.classList.remove('signup-open');
+  updateAccountControls();
+  closeLoginModal();
+  signupForm.reset();
+
+  if (loggedInAccount.role === 'customer') {
+    document.getElementById('booking-nav-button').click();
+    loadVehicleOptions('vehicle-select');
+  } else if (loggedInAccount.role === 'mechanic') {
+    document.getElementById('bookings-nav-button').click();
+  } else if (loggedInAccount.role === 'manager') {
+    document.getElementById('manager-nav-button').click();
+  }
+}
+
 function clearPrivateVehicleData() {
   document.getElementById('vehicle-select').innerHTML = '<option value="">Log in to view vehicles</option>';
   document.getElementById('history-vehicle-select').innerHTML = '<option value="">Log in to view vehicles</option>';
@@ -98,6 +143,7 @@ accountButton.addEventListener('click', () => {
     loggedInAccount = null;
     authToken = null;
     localStorage.removeItem(STORED_SESSION_KEY);
+    document.body.classList.remove('signup-open');
     clearPrivateVehicleData();
     updateAccountControls();
     if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
@@ -131,16 +177,7 @@ loginForm.addEventListener('submit', async (event) => {
       return;
     }
 
-    authToken = data.token;
-    loggedInAccount = data.account;
-    localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ token: authToken, account: loggedInAccount }));
-    updateAccountControls();
-    closeLoginModal();
-    if (loggedInAccount.role === 'customer') loadVehicleOptions('vehicle-select');
-    if (loggedInAccount.role === 'mechanic') {
-      document.getElementById('bookings-nav-button').click();
-    }
-    if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
+    acceptLoginSession(data);
   } catch {
     loginError.textContent = 'Could not reach the server. Please try again.';
   }
@@ -294,10 +331,10 @@ async function loadBookings() {
     const badgeClass = `badge-${b.status}`;
 
     card.innerHTML = `
-      <strong>${b.plate} - ${b.make} ${b.model}</strong><br />
-      ${b.service_type.replace('_', ' ')} on ${new Date(b.slot_start.replace(' ', 'T')).toLocaleString()}<br />
-      Ref: ${b.confirmation_ref}
-      <span class="badge ${badgeClass}">${b.status}</span>
+      <strong>${escapeHTML(b.plate)} - ${escapeHTML(b.make)} ${escapeHTML(b.model)}</strong><br />
+      ${escapeHTML(b.service_type.replace('_', ' '))} on ${escapeHTML(new Date(b.slot_start.replace(' ', 'T')).toLocaleString())}<br />
+      Ref: ${escapeHTML(b.confirmation_ref)}
+      <span class="badge ${escapeHTML(badgeClass)}">${escapeHTML(b.status)}</span>
     `;
 
     if (!isMechanic && b.status === 'completed' && b.customer_notification) {
@@ -348,10 +385,10 @@ async function loadCompletedBookings() {
       const card = document.createElement('div');
       card.className = 'booking-card';
       card.innerHTML = `
-        <strong>${booking.plate} - ${booking.make} ${booking.model}</strong><br />
-        Customer: ${booking.customer_name}<br />
-        ${booking.service_type.replace('_', ' ')}<br />
-        Completed: ${new Date(booking.completed_at.replace(' ', 'T')).toLocaleString()}
+        <strong>${escapeHTML(booking.plate)} - ${escapeHTML(booking.make)} ${escapeHTML(booking.model)}</strong><br />
+        Customer: ${escapeHTML(booking.customer_name)}<br />
+        ${escapeHTML(booking.service_type.replace('_', ' '))}<br />
+        Completed: ${escapeHTML(new Date(booking.completed_at.replace(' ', 'T')).toLocaleString())}
         <span class="badge badge-completed">completed</span>
       `;
       container.appendChild(card);
@@ -444,10 +481,10 @@ async function loadMechanicPortal() {
       const card = document.createElement('div');
       card.className = 'booking-card';
       card.innerHTML = `
-        <strong>${booking.plate} - ${booking.make} ${booking.model}</strong><br />
-        Customer: ${booking.customer_name}<br />
-        ${booking.service_type.replace('_', ' ')} on ${new Date(booking.slot_start.replace(' ', 'T')).toLocaleString()}<br />
-        Notes: ${booking.notes || 'No additional notes provided.'}
+        <strong>${escapeHTML(booking.plate)} - ${escapeHTML(booking.make)} ${escapeHTML(booking.model)}</strong><br />
+        Customer: ${escapeHTML(booking.customer_name)}<br />
+        ${escapeHTML(booking.service_type.replace('_', ' '))} on ${escapeHTML(new Date(booking.slot_start.replace(' ', 'T')).toLocaleString())}<br />
+        Notes: ${escapeHTML(booking.notes || 'No additional notes provided.')}
       `;
       const approveButton = document.createElement('button');
       approveButton.textContent = 'Approve';
@@ -642,7 +679,86 @@ function formatPercent(value) {
   return value === null || value === undefined ? 'N/A' : `${value}%`;
 }
 
+async function loadManagerAccounts() {
+  const container = document.getElementById('manager-account-list');
+  container.textContent = 'Loading accounts...';
+
+  try {
+    const response = await fetch(`${API_BASE}/manager/accounts`, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      container.textContent = data.error || 'Unable to load accounts.';
+      return;
+    }
+    if (data.accounts.length === 0) {
+      container.textContent = 'No customer or mechanic accounts.';
+      return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'account-table';
+    const head = document.createElement('thead');
+    const headingRow = document.createElement('tr');
+    ['Name', 'Username', 'Email', 'Role', ''].forEach((heading) => {
+      const cell = document.createElement('th');
+      cell.scope = 'col';
+      cell.textContent = heading;
+      headingRow.appendChild(cell);
+    });
+    head.appendChild(headingRow);
+    table.appendChild(head);
+
+    const body = document.createElement('tbody');
+    data.accounts.forEach((account) => {
+      const row = document.createElement('tr');
+      [account.display_name, account.username, account.email || 'Not provided', account.role].forEach((value) => {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        row.appendChild(cell);
+      });
+      const actionCell = document.createElement('td');
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'delete-account-button';
+      deleteButton.textContent = 'Delete';
+      deleteButton.setAttribute('aria-label', `Delete ${account.role} account ${account.username}`);
+      deleteButton.addEventListener('click', () => deleteManagedAccount(account));
+      actionCell.appendChild(deleteButton);
+      row.appendChild(actionCell);
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    container.replaceChildren(table);
+  } catch {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+async function deleteManagedAccount(account) {
+  const accepted = window.confirm(
+    `Delete sign-in access for ${account.display_name} (${account.username})? Their service records will be retained.`
+  );
+  if (!accepted) return;
+
+  const container = document.getElementById('manager-account-list');
+  try {
+    const response = await fetch(`${API_BASE}/manager/accounts/${account.id}`, {
+      method: 'DELETE',
+      headers: requestHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      container.textContent = data.error || 'Unable to delete account.';
+      return;
+    }
+    await loadManagerAccounts();
+  } catch {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
 async function loadManagerPortal() {
+  loadManagerAccounts();
   const filterSelect = document.getElementById('manager-mechanic-filter');
   const selectedMechanic = filterSelect.value;
   const jobsContainer = document.getElementById('manager-jobs-list');
@@ -688,11 +804,11 @@ async function loadManagerPortal() {
       const card = document.createElement('div');
       card.className = 'booking-card job-card';
       card.innerHTML = `
-        <strong>${job.plate} - ${job.make} ${job.model}</strong><br />
-        Customer: ${job.customer_name}<br />
-        Mechanic: ${job.mechanic_name} — ${job.service_type.replace('_', ' ')}<br />
-        Completed: ${new Date(job.completed_at.replace(' ', 'T')).toLocaleString()}
-        <span class="badge badge-completed">${job.job_status}</span>
+        <strong>${escapeHTML(job.plate)} - ${escapeHTML(job.make)} ${escapeHTML(job.model)}</strong><br />
+        Customer: ${escapeHTML(job.customer_name)}<br />
+        Mechanic: ${escapeHTML(job.mechanic_name)} — ${escapeHTML(job.service_type.replace('_', ' '))}<br />
+        Completed: ${escapeHTML(new Date(job.completed_at.replace(' ', 'T')).toLocaleString())}
+        <span class="badge badge-completed">${escapeHTML(job.job_status)}</span>
       `;
       card.addEventListener('click', () => openJobDetails(job.job_id));
       jobsContainer.appendChild(card);
@@ -847,9 +963,9 @@ async function loadHistory(vehicleId) {
     const badgeClass = current.status === 'fixed' ? 'badge-fixed' : 'badge-flagged';
 
     card.innerHTML = `
-      <strong>${current.fault_description}</strong>
-      <span class="badge ${badgeClass}">${current.status.replace('_', ' ')}</span><br />
-      Severity: ${current.severity} — ${new Date(current.created_at.replace(' ', 'T')).toLocaleString()}
+      <strong>${escapeHTML(current.fault_description)}</strong>
+      <span class="badge ${escapeHTML(badgeClass)}">${escapeHTML(current.status.replace('_', ' '))}</span><br />
+      Severity: ${escapeHTML(current.severity)} — ${escapeHTML(new Date(current.created_at.replace(' ', 'T')).toLocaleString())}
     `;
 
     // Only the current (non-superseded) version of an entry can be edited;
@@ -875,9 +991,9 @@ async function loadHistory(vehicleId) {
         const oldEntry = document.createElement('div');
         oldEntry.className = 'history-card history-card-old';
         oldEntry.innerHTML = `
-          <strong>${entry.fault_description}</strong>
-          <span class="badge ${oldBadgeClass}">${entry.status.replace('_', ' ')}</span><br />
-          Severity: ${entry.severity} — ${new Date(entry.created_at.replace(' ', 'T')).toLocaleString()}
+          <strong>${escapeHTML(entry.fault_description)}</strong>
+          <span class="badge ${escapeHTML(oldBadgeClass)}">${escapeHTML(entry.status.replace('_', ' '))}</span><br />
+          Severity: ${escapeHTML(entry.severity)} — ${escapeHTML(new Date(entry.created_at.replace(' ', 'T')).toLocaleString())}
         `;
         details.appendChild(oldEntry);
       });
@@ -917,6 +1033,68 @@ function closeDiagnosticEditModal() {
 document.getElementById('close-diagnostic-edit-modal').addEventListener('click', closeDiagnosticEditModal);
 document.getElementById('diagnostic-edit-modal').addEventListener('click', (event) => {
   if (event.target.id === 'diagnostic-edit-modal') closeDiagnosticEditModal();
+});
+
+signupForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  signupError.textContent = '';
+  const formData = new FormData(signupForm);
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        displayName: formData.get('displayName'),
+        email: formData.get('email'),
+        username: formData.get('username'),
+        password: formData.get('password'),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      signupError.textContent = data.error || 'Unable to create your account.';
+      return;
+    }
+
+    acceptLoginSession(data);
+  } catch {
+    signupError.textContent = 'Could not reach the server. Please try again.';
+  }
+});
+
+document.getElementById('create-mechanic-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const result = document.getElementById('create-mechanic-result');
+  result.textContent = '';
+  const formData = new FormData(form);
+
+  try {
+    const response = await fetch(`${API_BASE}/manager/accounts/mechanics`, {
+      method: 'POST',
+      headers: requestHeaders(true),
+      body: JSON.stringify({
+        displayName: formData.get('displayName'),
+        username: formData.get('username'),
+        password: formData.get('password'),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      result.textContent = data.error || 'Unable to create mechanic account.';
+      result.className = 'result-error';
+      return;
+    }
+
+    form.reset();
+    result.textContent = `Mechanic account created for ${data.account.display_name}.`;
+    result.className = 'result-success';
+    await loadManagerAccounts();
+  } catch {
+    result.textContent = 'Could not reach the server. Please try again.';
+    result.className = 'result-error';
+  }
 });
 
 document.getElementById('diagnostic-edit-form').addEventListener('submit', async (event) => {

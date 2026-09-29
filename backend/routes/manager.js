@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db/db');
 const { requireAccount, denyAccess } = require('../auth');
+const { hashPassword } = require('../passwords');
 
 const router = express.Router();
 
@@ -14,6 +15,64 @@ function requireManager(req, res, next) {
 
 // Every route in this file is manager-only.
 router.use(requireAccount, requireManager);
+
+router.get('/accounts', (req, res) => {
+  const accounts = getDb().prepare(
+    `SELECT users.id, users.username, users.role, users.display_name, users.email, users.created_at
+     FROM users
+     WHERE users.role IN ('customer', 'mechanic')
+     ORDER BY users.role, users.display_name COLLATE NOCASE, users.username COLLATE NOCASE`
+  ).all();
+  return res.json({ accounts });
+});
+
+router.post('/accounts/mechanics', (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const displayName = typeof req.body?.displayName === 'string' ? req.body.displayName.trim() : '';
+
+  if (!/^[a-z0-9._-]{3,30}$/.test(username) || password.length < 8 || password.length > 128
+    || displayName.length < 2 || displayName.length > 80) {
+    return res.status(400).json({ error: 'Enter a valid name and username; passwords must be 8 to 128 characters.' });
+  }
+
+  const db = getDb();
+  try {
+    const result = db.prepare(
+      `INSERT INTO users (username, password_hash, role, display_name)
+       VALUES (?, ?, 'mechanic', ?)`
+    ).run(username, hashPassword(password), displayName);
+    const account = db.prepare(
+      'SELECT id, username, role, display_name, email, created_at FROM users WHERE id = ?'
+    ).get(result.lastInsertRowid);
+    return res.status(201).json({ account });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.code === 'SQLITE_CONSTRAINT') {
+      return res.status(409).json({ error: 'That username is already in use.' });
+    }
+    console.error(error);
+    return res.status(500).json({ error: 'Unable to create the mechanic account.' });
+  }
+});
+
+router.delete('/accounts/:accountId', (req, res) => {
+  const accountId = Number(req.params.accountId);
+  if (!Number.isSafeInteger(accountId) || accountId < 1) {
+    return res.status(400).json({ error: 'Choose a valid account.' });
+  }
+
+  const db = getDb();
+  const account = db.prepare(
+    'SELECT id, role FROM users WHERE id = ?'
+  ).get(accountId);
+  if (!account || !['customer', 'mechanic'].includes(account.role)) {
+    return res.status(404).json({ error: 'Customer or mechanic account not found.' });
+  }
+
+  // Remove login access only; customer and workshop records remain available for audit/history.
+  db.prepare('DELETE FROM users WHERE id = ?').run(accountId);
+  return res.json({ message: 'Account deleted. Associated service records were retained.' });
+});
 
 // Populates dashboard mechanic filter dropdown with distinct list of mechanic that approved, denied, completed booking
 function getKnownMechanics(db) {
