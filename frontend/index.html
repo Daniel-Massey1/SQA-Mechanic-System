@@ -19,10 +19,12 @@
   </header>
 
   <nav id="app-nav">
+    <button id="customer-home-nav-button" data-view="customer-home" class="nav-btn" hidden>Home</button>
     <button id="booking-nav-button" data-view="booking" class="nav-btn active">Book a Service</button>
     <button id="bookings-nav-button" data-view="bookings" class="nav-btn">My Bookings</button>
     <button id="completed-nav-button" data-view="completed" class="nav-btn" hidden>Completed Bookings</button>
-    <button data-view="history" class="nav-btn">Vehicle History</button>
+    <button id="history-nav-button" data-view="history" class="nav-btn">Vehicle History</button>
+    <button id="customer-vehicles-nav-button" data-view="vehicles" class="nav-btn" hidden>My Vehicles</button>
     <button id="mechanic-nav-button" data-view="mechanic" class="nav-btn" hidden>Mechanic Portal</button>
     <button id="manager-nav-button" data-view="manager" class="nav-btn" hidden>Manager Dashboard</button>
   </nav>
@@ -123,6 +125,60 @@
     </section>
   </div>
     <!-- Step-based booking flow: select vehicle -> select service+slot -> confirm -->
+    <!-- Customer landing page: expose all customer tasks and a quick account summary. -->
+    <section id="view-customer-home" class="view customer-home">
+      <div class="customer-home-heading">
+        <p class="customer-home-eyebrow">Customer workspace</p>
+        <h2 id="customer-home-title">Your service hub</h2>
+        <p>Keep your vehicles, service bookings, and history together.</p>
+      </div>
+
+      <div class="customer-action-grid" aria-label="Customer options">
+        <button class="customer-action primary-customer-action" type="button" data-customer-destination="booking">
+          <span class="customer-action-index">01</span>
+          <span class="customer-action-title">Book a service</span>
+          <span class="customer-action-description">Choose your vehicle, service, date, and time.</span>
+          <span class="customer-action-arrow" aria-hidden="true">&#8594;</span>
+        </button>
+        <button class="customer-action" type="button" data-customer-destination="bookings">
+          <span class="customer-action-index">02</span>
+          <span class="customer-action-title">My bookings</span>
+          <span class="customer-action-description">Review upcoming appointments and past visits.</span>
+          <span class="customer-action-arrow" aria-hidden="true">&#8594;</span>
+        </button>
+        <button class="customer-action" type="button" data-customer-destination="history">
+          <span class="customer-action-index">03</span>
+          <span class="customer-action-title">Vehicle history</span>
+          <span class="customer-action-description">See service notes, completed work, and follow-ups.</span>
+          <span class="customer-action-arrow" aria-hidden="true">&#8594;</span>
+        </button>
+        <button class="customer-action" type="button" data-customer-destination="vehicles">
+          <span class="customer-action-index">04</span>
+          <span class="customer-action-title">My vehicles</span>
+          <span class="customer-action-description">Add a vehicle or update your garage.</span>
+          <span class="customer-action-arrow" aria-hidden="true">&#8594;</span>
+        </button>
+      </div>
+
+      <div class="customer-home-details">
+        <section class="customer-home-panel" aria-labelledby="customer-garage-title">
+          <div class="customer-home-panel-heading">
+            <div>
+              <p class="customer-home-eyebrow">In your account</p>
+              <h3 id="customer-garage-title">Your garage</h3>
+            </div>
+            <span id="customer-vehicle-count" class="customer-count">0 vehicles</span>
+          </div>
+          <div id="customer-home-vehicles" class="customer-home-vehicles" aria-live="polite">Loading vehicles...</div>
+        </section>
+        <section class="customer-home-panel next-visit-panel" aria-labelledby="customer-next-visit-title">
+          <p class="customer-home-eyebrow">Coming up</p>
+          <h3 id="customer-next-visit-title">Next appointment</h3>
+          <div id="customer-next-visit" aria-live="polite">Checking your bookings...</div>
+        </section>
+      </div>
+    </section>
+
     <section id="view-booking" class="view active">
       <h2>Book a Service</h2>
       <p id="booking-login-message" class="result-error" hidden>Please log in as a customer to book a service.</p>
@@ -136,32 +192,8 @@
         <div id="step-1" class="step-panel active">
           <label for="vehicle-select">Select your vehicle</label>
           <select id="vehicle-select"></select>
-          <details class="add-vehicle-panel">
-            <summary>Add a vehicle</summary>
-            <form id="add-vehicle-form">
-              <div class="vehicle-form-grid">
-                <div>
-                  <label for="new-vehicle-plate">Registration plate</label>
-                  <input id="new-vehicle-plate" name="plate" type="text" maxlength="12" autocomplete="off" required />
-                </div>
-                <div>
-                  <label for="new-vehicle-make">Make</label>
-                  <input id="new-vehicle-make" name="make" type="text" maxlength="60" required />
-                </div>
-                <div>
-                  <label for="new-vehicle-model">Model</label>
-                  <input id="new-vehicle-model" name="model" type="text" maxlength="60" required />
-                </div>
-                <div>
-                  <label for="new-vehicle-wof">WOF expiry <span>(optional)</span></label>
-                  <input id="new-vehicle-wof" name="wofExpiry" type="date" />
-                </div>
-              </div>
-              <p id="add-vehicle-result" role="status"></p>
-              <button type="submit">Save vehicle</button>
-            </form>
-          </details>
           <button id="to-step-2">Next</button>
+          <button id="manage-vehicles-from-booking" class="secondary-action" type="button">Add or manage vehicles</button>
         </div>
 
         <div id="step-2" class="step-panel">
@@ -186,7 +218,7 @@
           <textarea id="booking-notes" rows="4" placeholder="Tell us anything we should know about your vehicle or service needs."></textarea>
 
           <div class="btn-row">
-            <button id="back-to-1">Back</button>
+            <button id="back-to-1" class="secondary-action">Back</button>
             <button id="to-step-3">Next</button>
           </div>
         </div>
@@ -195,12 +227,66 @@
           <h3>Confirm your booking</h3>
           <p id="confirm-summary"></p>
           <div class="btn-row">
-            <button id="back-to-2">Back</button>
+            <button id="back-to-2" class="secondary-action">Back</button>
             <button id="confirm-booking">Confirm Booking</button>
           </div>
         </div>
 
         <div id="booking-result"></div>
+      </div>
+    </section>
+
+    <!-- Vehicle management stays separate from the booking steps. -->
+    <section id="view-vehicles" class="view customer-vehicles-view">
+      <div class="customer-view-heading">
+        <div>
+          <p class="customer-home-eyebrow">Customer workspace</p>
+          <h2>My Vehicles</h2>
+          <p>Manage the vehicles attached to your customer account.</p>
+        </div>
+        <button id="vehicles-booking-button" type="button">Book a service</button>
+      </div>
+      <div class="customer-vehicles-layout">
+        <section class="customer-home-panel" aria-labelledby="vehicles-list-title">
+          <div class="customer-home-panel-heading">
+            <div>
+              <p class="customer-home-eyebrow">Registered</p>
+              <h3 id="vehicles-list-title">Your garage</h3>
+            </div>
+            <span id="vehicles-page-count" class="customer-count">0 vehicles</span>
+          </div>
+          <div id="customer-vehicles-list" class="customer-vehicle-list" aria-live="polite">Loading vehicles...</div>
+        </section>
+        <section class="customer-home-panel add-customer-vehicle-panel" aria-labelledby="add-customer-vehicle-title">
+          <div class="customer-home-panel-heading">
+            <div>
+              <p class="customer-home-eyebrow">Add to your garage</p>
+              <h3 id="add-customer-vehicle-title">Add a vehicle</h3>
+            </div>
+          </div>
+          <form id="add-vehicle-form">
+            <div class="vehicle-form-grid">
+              <div>
+                <label for="new-vehicle-plate">Registration plate</label>
+                <input id="new-vehicle-plate" name="plate" type="text" maxlength="12" autocomplete="off" required />
+              </div>
+              <div>
+                <label for="new-vehicle-make">Make</label>
+                <input id="new-vehicle-make" name="make" type="text" maxlength="60" required />
+              </div>
+              <div>
+                <label for="new-vehicle-model">Model</label>
+                <input id="new-vehicle-model" name="model" type="text" maxlength="60" required />
+              </div>
+              <div>
+                <label for="new-vehicle-wof">WOF expiry <span>(optional)</span></label>
+                <input id="new-vehicle-wof" name="wofExpiry" type="date" />
+              </div>
+            </div>
+            <p id="add-vehicle-result" role="status"></p>
+            <button type="submit">Save vehicle</button>
+          </form>
+        </section>
       </div>
     </section>
 
