@@ -195,13 +195,15 @@ function updateAccountControls() {
   document.body.classList.toggle('is-guest', !isLoggedIn);
   const isCustomer = loggedInAccount?.role === 'customer';
   const isMechanic = loggedInAccount?.role === 'mechanic';
-  const isManager = loggedInAccount?.role === 'manager';
   accountButton.textContent = isLoggedIn ? 'Log out' : 'Log in';
   accountName.textContent = isLoggedIn ? loggedInAccount.username : '';
   accountName.hidden = !isLoggedIn;
+  document.getElementById('customer-home-nav-button').hidden = !isCustomer;
   // Mechanics use approvals and their schedule instead of customer booking.
   document.getElementById('booking-nav-button').hidden = !isCustomer;
+  document.getElementById('bookings-nav-button').hidden = !isCustomer && !isMechanic;
   document.getElementById('bookings-nav-button').textContent = isMechanic ? 'Upcoming Bookings' : 'My Bookings';
+  document.getElementById('customer-vehicles-nav-button').hidden = !isCustomer;
   document.getElementById('completed-nav-button').hidden = !isMechanic;
   document.getElementById('mechanic-nav-button').hidden = !isMechanic;
   document.getElementById('manager-nav-button').hidden = loggedInAccount?.role !== 'manager';
@@ -219,7 +221,7 @@ function acceptLoginSession(data) {
   signupForm.reset();
 
   if (loggedInAccount.role === 'customer') {
-    document.getElementById('booking-nav-button').click();
+    document.getElementById('customer-home-nav-button').click();
     loadVehicleOptions('vehicle-select');
   } else if (loggedInAccount.role === 'mechanic') {
     document.getElementById('bookings-nav-button').click();
@@ -282,18 +284,40 @@ loginForm.addEventListener('submit', async (event) => {
 // --- Navigation between the three top-level views ----------------------
 document.querySelectorAll('.nav-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach((b) => {
+      b.classList.remove('active');
+      b.removeAttribute('aria-current');
+    });
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
     btn.classList.add('active');
+    btn.setAttribute('aria-current', 'page');
     document.getElementById(`view-${btn.dataset.view}`).classList.add('active');
 
     if (btn.dataset.view === 'bookings') loadBookings();
     if (btn.dataset.view === 'completed') loadCompletedBookings();
+    if (btn.dataset.view === 'customer-home') loadCustomerDashboard();
+    if (btn.dataset.view === 'vehicles') loadCustomerVehicles();
     if (btn.dataset.view === 'booking' && loggedInAccount?.role === 'customer') loadAvailableTimeSlots();
     if (btn.dataset.view === 'history') loadHistoryVehicleOptions();
     if (btn.dataset.view === 'mechanic') loadMechanicPortal();
     if (btn.dataset.view === 'manager') loadManagerPortal();
   });
+});
+
+document.querySelectorAll('[data-customer-destination]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const destination = button.dataset.customerDestination;
+    document.querySelector(`.nav-btn[data-view="${destination}"]`)?.click();
+  });
+});
+
+document.getElementById('manage-vehicles-from-booking').addEventListener('click', () => {
+  // Keep booking focused on scheduling; vehicle creation lives in its own customer view.
+  document.getElementById('customer-vehicles-nav-button').click();
+});
+
+document.getElementById('vehicles-booking-button').addEventListener('click', () => {
+  document.getElementById('booking-nav-button').click();
 });
 
 // --- Step navigation within the booking flow ----------------------------
@@ -406,6 +430,109 @@ async function loadVehicleOptions(selectElementId, selectedVehicleId = null) {
   }
 }
 
+function formatVehicleSummary(vehicle) {
+  return `${vehicle.plate} - ${vehicle.make} ${vehicle.model}`;
+}
+
+function renderCustomerVehicleList(container, vehicles, emptyMessage) {
+  container.replaceChildren();
+  if (vehicles.length === 0) {
+    container.textContent = emptyMessage;
+    return;
+  }
+
+  vehicles.forEach((vehicle) => {
+    const item = document.createElement('article');
+    item.className = 'customer-vehicle-item';
+    const heading = document.createElement('h4');
+    heading.textContent = formatVehicleSummary(vehicle);
+    item.appendChild(heading);
+
+    const registration = document.createElement('p');
+    registration.textContent = vehicle.wof_expiry
+      ? `WOF expiry ${new Date(`${vehicle.wof_expiry}T00:00:00`).toLocaleDateString()}`
+      : 'WOF expiry not recorded';
+    item.appendChild(registration);
+    container.appendChild(item);
+  });
+}
+
+// The customer home summary is scoped to the signed-in account via token-protected APIs.
+async function loadCustomerDashboard() {
+  if (loggedInAccount?.role !== 'customer') return;
+
+  const vehiclesContainer = document.getElementById('customer-home-vehicles');
+  const nextVisit = document.getElementById('customer-next-visit');
+  vehiclesContainer.textContent = 'Loading your vehicles...';
+  nextVisit.textContent = 'Checking your bookings...';
+
+  try {
+    const [vehiclesResponse, bookingsResponse] = await Promise.all([
+      fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`, { headers: requestHeaders() }),
+      fetch(`${API_BASE}/bookings/customer/${getCurrentCustomerId()}`, { headers: requestHeaders() }),
+    ]);
+    const vehiclesData = await vehiclesResponse.json();
+    const bookingsData = await bookingsResponse.json();
+    if (!vehiclesResponse.ok || !bookingsResponse.ok) {
+      vehiclesContainer.textContent = vehiclesData.error || bookingsData.error || 'Unable to load your account overview.';
+      nextVisit.textContent = '';
+      return;
+    }
+
+    const vehicles = vehiclesData.vehicles;
+    const countText = `${vehicles.length} ${vehicles.length === 1 ? 'vehicle' : 'vehicles'}`;
+    document.getElementById('customer-vehicle-count').textContent = countText;
+    renderCustomerVehicleList(vehiclesContainer, vehicles.slice(0, 3), vehicles.length
+      ? 'Your garage is ready.'
+      : 'Add your first vehicle to get started.');
+
+    const upcomingBookings = bookingsData.bookings
+      .filter((booking) => ['pending', 'confirmed'].includes(booking.status)
+        && new Date(booking.slot_start.replace(' ', 'T')).getTime() > Date.now())
+      .sort((left, right) => new Date(left.slot_start.replace(' ', 'T')) - new Date(right.slot_start.replace(' ', 'T')));
+    if (upcomingBookings.length === 0) {
+      nextVisit.textContent = 'No upcoming appointments.';
+      return;
+    }
+
+    const appointment = upcomingBookings[0];
+    const summary = document.createElement('p');
+    summary.className = 'customer-next-visit-summary';
+    summary.textContent = `${appointment.plate} · ${appointment.service_type.replace('_', ' ')} · ${new Date(appointment.slot_start.replace(' ', 'T')).toLocaleString()}`;
+    const status = document.createElement('span');
+    status.className = `badge badge-${appointment.status}`;
+    status.textContent = appointment.status;
+    nextVisit.replaceChildren(summary, status);
+  } catch {
+    vehiclesContainer.textContent = 'Could not reach the server. Please try again.';
+    nextVisit.textContent = '';
+  }
+}
+
+// The dedicated garage view owns vehicle creation and refreshes both customer summaries after save.
+async function loadCustomerVehicles() {
+  if (loggedInAccount?.role !== 'customer') return;
+
+  const container = document.getElementById('customer-vehicles-list');
+  container.textContent = 'Loading your vehicles...';
+  try {
+    const response = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`, {
+      headers: requestHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      container.textContent = data.error || 'Unable to load your vehicles.';
+      return;
+    }
+
+    const countText = `${data.vehicles.length} ${data.vehicles.length === 1 ? 'vehicle' : 'vehicles'}`;
+    document.getElementById('vehicles-page-count').textContent = countText;
+    renderCustomerVehicleList(container, data.vehicles, 'No vehicles added yet. Use the form to add one to your garage.');
+  } catch {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
 document.getElementById('add-vehicle-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -436,6 +563,8 @@ document.getElementById('add-vehicle-form').addEventListener('submit', async (ev
     result.textContent = `${data.vehicle.plate} added to your vehicles.`;
     result.className = 'result-success';
     await loadVehicleOptions('vehicle-select', data.vehicle.id);
+    await loadCustomerVehicles();
+    await loadCustomerDashboard();
   } catch {
     result.textContent = 'Could not reach the server. Please try again.';
     result.className = 'result-error';
@@ -1331,6 +1460,11 @@ async function initializeApp() {
   if (loggedInAccount?.role === 'customer') {
     loadVehicleOptions('vehicle-select');
     loadAvailableTimeSlots();
+    document.getElementById('customer-home-nav-button').click();
+  } else if (loggedInAccount?.role === 'mechanic') {
+    document.getElementById('bookings-nav-button').click();
+  } else if (loggedInAccount?.role === 'manager') {
+    document.getElementById('manager-nav-button').click();
   }
 }
 

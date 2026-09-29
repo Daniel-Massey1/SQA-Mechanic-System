@@ -1,20 +1,26 @@
 * { box-sizing: border-box; }
 
 :root {
-  --ink: #1f1f1f;
-  --ink-strong: #111111;
-  --brand-red: #eb0a1e;
-  --action-red: #c40817;
+  --ink: #202624;
+  --ink-strong: #121816;
+  --brand-red: #d71920;
+  --action-red: #bd1720;
   --red-soft: #fff0f1;
-  --canvas: #f5f5f5;
-  --line: #d6d6d6;
-  --muted: #626262;
-  --success: #2e7d32;
-  --success-soft: #eaf5eb;
+  --canvas: #eff1ee;
+  --surface: #ffffff;
+  --surface-soft: #f7f8f6;
+  --line: #d6ddda;
+  --line-strong: #b9c3be;
+  --muted: #5d6963;
+  --success: #287746;
+  --success-soft: #eaf4ed;
   --warning: #8a5a00;
   --warning-soft: #fff6df;
   --info: #365d82;
   --info-soft: #eaf1f7;
+  --shadow-soft: 0 8px 24px rgba(27, 36, 32, 0.07);
+  --shadow-raised: 0 18px 48px rgba(18, 28, 23, 0.18);
+  --radius: 4px;
 }
 
 body {
@@ -880,6 +886,135 @@ body:not(.is-guest) .view {
   box-shadow: 0 8px 24px rgba(25, 30, 28, 0.045);
 }
 
+body:not(.is-guest) .view .approve-btn {
+  border-color: #287746;
+  background: #287746;
+  color: #fff;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .approve-btn:hover {
+  border-color: #205f39;
+  background: #205f39;
+  color: #fff;
+}
+
+body:not(.is-guest) .view .deny-btn,
+body:not(.is-guest) .view .cancel-btn {
+  border-color: #bd1720;
+  background: #bd1720;
+  color: #fff;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .deny-btn:hover,
+body:not(.is-guest) .view .cancel-btn:hover {
+  border-color: #a40f18;
+  background: #a40f18;
+  color: #fff;
+}
+
+body:not(.is-guest) .view .details-btn,
+body:not(.is-guest) .view .btn-row button:first-child {
+  border-color: #c8d0cb;
+  background: #fff;
+  color: #35413a;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .details-btn:hover,
+body:not(.is-guest) .view .btn-row button:first-child:hover {
+  border-color: #98a69e;
+  background: #f2f5f2;
+  color: #202624;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view #manage-vehicles-from-booking {
+  display: flex;
+  width: fit-content;
+  min-height: 2rem;
+  margin: 0.5rem 0 0;
+  padding: 0.35rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #647069;
+  font-size: 0.82rem;
+  font-weight: 550;
+  justify-content: flex-start;
+  box-shadow: none;
+  text-decoration: underline;
+  text-decoration-color: #bdc7c0;
+  text-underline-offset: 3px;
+}
+
+body:not(.is-guest) .view #manage-vehicles-from-booking:hover {
+  background: transparent;
+  color: #26332c;
+  box-shadow: none;
+  transform: none;
+  text-decoration-color: #26332c;
+}
+
+.landing-actions .landing-login,
+.public-signup .landing-topbar > .landing-login {
+  min-height: 2.75rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid #aab5ae;
+  border-radius: 8px;
+  background: transparent;
+  color: #26312b;
+  box-shadow: none;
+}
+
+.landing-actions .landing-login:hover,
+.public-signup .landing-topbar > .landing-login:hover {
+  border-color: #77857c;
+  background: rgba(255, 255, 255, 0.72);
+  color: #18211c;
+  box-shadow: none;
+}
+
+.landing-actions .landing-signup {
+  min-height: 2.75rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid #26312b;
+  border-radius: 8px;
+  background: #26312b;
+  color: #fff;
+  box-shadow: none;
+}
+
+.landing-actions .landing-signup:hover {
+  border-color: #18211c;
+  background: #18211c;
+  color: #fff;
+  box-shadow: none;
+}
+
+.landing-hero-actions .landing-primary {
+  min-height: 3.1rem;
+  padding: 0.8rem 1.1rem;
+  border: 1px solid var(--action-red);
+  border-radius: 8px;
+  background: var(--action-red);
+  color: #fff;
+  box-shadow: none;
+}
+
+.landing-hero-actions .landing-primary:hover {
+  border-color: #a80f18;
+  background: #a80f18;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+.public-signup .landing-topbar > .landing-login {
+  margin: 0;
+}
+
 body:not(.is-guest) .view > h2 {
   margin-bottom: 1.35rem;
   color: #222725;
@@ -1276,7 +1411,8 @@ body:not(.is-guest) .time-slot-button:not(:disabled):hover {
   border-color: #c21720;
   background: #fff8f8;
   color: #252927;
-  box-shadow: none;
+  transform: translateY(-2px);
+  box-shadow: 0 3px 0 #ead0d1, 0 7px 14px rgba(83, 13, 18, 0.1);
 }
 
 body:not(.is-guest) .time-slot-button.is-selected,
@@ -1298,6 +1434,1086 @@ body:not(.is-guest) .time-slot-button.is-past {
 
 body:not(.is-guest) .time-slot-button:disabled:hover { background: #eceeeb; color: #858b87; }
 
+body:not(.is-guest) .time-slot-button:not(:disabled) {
+  border-color: #cbd4ce;
+  box-shadow: 0 2px 0 #d6ded9, 0 4px 9px rgba(27, 36, 32, 0.07);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+body:not(.is-guest) .time-slot-button.is-selected,
+body:not(.is-guest) .time-slot-button.is-selected:hover {
+  border-color: #970f17;
+  background: linear-gradient(180deg, #cf242d 0%, #b7141e 100%);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 0 #850d15, 0 6px 12px rgba(83, 13, 18, 0.16);
+}
+
 @media (max-width: 640px) {
   body:not(.is-guest) .time-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Shared finish: precise workshop surfaces with a restrained technical grid. */
+body {
+  color: var(--ink);
+  background-color: var(--canvas);
+  background-image:
+    linear-gradient(rgba(44, 62, 53, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(44, 62, 53, 0.022) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+body:not(.is-guest) {
+  background-color: var(--canvas);
+  background-image:
+    linear-gradient(rgba(44, 62, 53, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(44, 62, 53, 0.022) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.is-guest #public-landing,
+.is-guest #public-signup {
+  background-color: #f1f2ee;
+  background-image:
+    linear-gradient(rgba(44, 62, 53, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(44, 62, 53, 0.018) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(189, 23, 32, 0.32);
+  outline-offset: 2px;
+}
+
+body:not(.is-guest) {
+  padding: 0 0 3rem;
+  background-color: var(--canvas);
+}
+
+body:not(.is-guest) #app-header {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  padding: 1rem max(1.25rem, calc((100vw - 1240px) / 2));
+  border: 0;
+  border-top: 3px solid var(--brand-red);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  background: #202624;
+  box-shadow: 0 8px 22px rgba(18, 28, 23, 0.12);
+}
+
+body:not(.is-guest) #app-header h1 {
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+body:not(.is-guest) .subtitle {
+  color: #b9c3be;
+  font-size: 0.76rem;
+}
+
+body:not(.is-guest) .account-name {
+  color: #e8ece9;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+body:not(.is-guest) .account-controls button {
+  min-height: 2.4rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--radius);
+  background: transparent;
+  color: #fff;
+}
+
+body:not(.is-guest) .account-controls button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+body:not(.is-guest) #app-nav {
+  display: flex;
+  gap: 0.2rem;
+  width: min(calc(100% - 3rem), 1240px);
+  margin: 0 auto;
+  padding: 0.85rem 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: thin;
+}
+
+body:not(.is-guest) .nav-btn {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  margin: 0;
+  margin: 0;
+  padding: 0.7rem 1rem 0.8rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #55625b;
+  font-size: 0.86rem;
+  font-weight: 650;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+body:not(.is-guest) .nav-btn::after {
+  position: absolute;
+  right: 1rem;
+  bottom: -1px;
+  left: 1rem;
+  height: 3px;
+  background: transparent;
+  content: '';
+  transition: background-color 150ms ease;
+}
+
+body:not(.is-guest) .nav-btn:hover,
+body:not(.is-guest) .nav-btn.active,
+body:not(.is-guest) .nav-btn.active:hover {
+  border: 0;
+  background: transparent;
+  color: var(--ink-strong);
+  box-shadow: none;
+}
+
+body:not(.is-guest) .nav-btn.active::after { background: var(--action-red); }
+
+body:not(.is-guest) main {
+  width: min(calc(100% - 3rem), 1240px);
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+body:not(.is-guest) .view {
+  min-height: 18rem;
+  padding: 2rem 0 3rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view.active { animation: portal-enter 180ms ease-out both; }
+
+body:not(.is-guest) .view > h2 {
+  margin: 0 0 1.5rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--ink-strong);
+  font-size: 1.65rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+body:not(.is-guest) h3 {
+  color: var(--ink-strong);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+body:not(.is-guest) label {
+  margin-top: 0.9rem;
+  color: #37423c;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+body:not(.is-guest) select,
+body:not(.is-guest) input,
+body:not(.is-guest) textarea {
+  min-height: 2.65rem;
+  border-color: #c7d0cb;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.92);
+  color: #222a26;
+}
+
+body:not(.is-guest) select:hover,
+body:not(.is-guest) input:hover,
+body:not(.is-guest) textarea:hover { border-color: #9eaaa3; }
+
+body:not(.is-guest) select:focus,
+body:not(.is-guest) input:focus,
+body:not(.is-guest) textarea:focus {
+  border-color: var(--action-red);
+  box-shadow: 0 0 0 3px rgba(189, 23, 32, 0.11);
+}
+
+body:not(.is-guest) button {
+  min-height: 2.55rem;
+  padding: 0.62rem 0.95rem;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+body:not(.is-guest) .btn-row button:first-child,
+body:not(.is-guest) .details-btn,
+body:not(.is-guest) .signup-existing-login {
+  border: 1px solid #bfc8c3;
+  background: #fff;
+  color: #37423c;
+}
+
+body:not(.is-guest) .btn-row button:first-child:hover,
+body:not(.is-guest) .details-btn:hover,
+body:not(.is-guest) .signup-existing-login:hover {
+  border-color: #7f8e85;
+  background: #f4f6f4;
+  color: var(--ink-strong);
+  box-shadow: none;
+}
+
+body:not(.is-guest) .stepper {
+  gap: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+body:not(.is-guest) .step {
+  padding: 0.6rem 1rem;
+  border-radius: 0;
+  background: transparent;
+  color: #68736d;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+body:not(.is-guest) .step.active {
+  background: #e9edeb;
+  color: var(--ink-strong);
+  box-shadow: inset 0 -3px var(--action-red);
+}
+
+body:not(.is-guest) .step-panel { max-width: 52rem; }
+
+body:not(.is-guest) .booking-group + .booking-group {
+  margin-top: 2rem;
+  padding-top: 1.4rem;
+  border-color: var(--line-strong);
+}
+
+body:not(.is-guest) .booking-group > h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.9rem;
+  color: #46534b;
+  font-size: 0.83rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+body:not(.is-guest) .booking-card,
+body:not(.is-guest) .history-card {
+  padding: 1rem 1.15rem;
+  border: 1px solid #d6ddda;
+  border-left: 3px solid var(--action-red);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 6px rgba(25, 39, 31, 0.035);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+body:not(.is-guest) .booking-card:hover,
+body:not(.is-guest) .history-card:hover {
+  border-color: #bcc8c1;
+  border-left-color: var(--action-red);
+  box-shadow: 0 5px 14px rgba(25, 39, 31, 0.07);
+}
+
+body:not(.is-guest) .badge {
+  padding: 0.22rem 0.48rem;
+  border-radius: 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+body:not(.is-guest) .mechanic-workspace,
+body:not(.is-guest) .manager-dashboard {
+  overflow: visible;
+  background: transparent;
+}
+
+body:not(.is-guest) .mechanic-title {
+  margin-bottom: 1rem;
+  padding: 1.2rem 1.35rem;
+  border: 0;
+  border-left: 4px solid var(--action-red);
+  border-radius: 0 3px 3px 0;
+  background: #e3e8e4;
+  color: var(--ink-strong);
+}
+
+body:not(.is-guest) .mechanic-title p {
+  margin-bottom: 0.4rem;
+  color: #59675f;
+  font-size: 0.68rem;
+}
+
+body:not(.is-guest) .mechanic-title h2 {
+  color: var(--ink-strong);
+  font-size: 1.45rem;
+  font-weight: 650;
+}
+
+body:not(.is-guest) .mechanic-grid { gap: 1rem; padding: 0; }
+
+body:not(.is-guest) .mechanic-panel,
+body:not(.is-guest) .account-list-panel,
+body:not(.is-guest) .account-form-panel {
+  padding: 1rem 1.1rem;
+  border: 0;
+  border-top: 2px solid #cbd4cf;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: none;
+}
+
+body:not(.is-guest) .approvals-panel { border-top-color: var(--action-red); }
+
+body:not(.is-guest) .mechanic-panel-heading,
+body:not(.is-guest) .account-panel-heading {
+  min-height: auto;
+  margin: -0.15rem 0 0.7rem;
+  padding: 0 0 0.7rem;
+  border-bottom: 1px solid #e1e6e2;
+}
+
+body:not(.is-guest) .mechanic-panel-heading h3,
+body:not(.is-guest) .account-panel-heading h4 {
+  color: #303a34;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+body:not(.is-guest) .mechanic-workspace .booking-card {
+  background: #fff;
+  border-color: #dbe1dd;
+  border-left-color: var(--action-red);
+}
+
+body:not(.is-guest) .manager-body { padding: 0; }
+
+body:not(.is-guest) .summary-cards {
+  gap: 0;
+  margin: 1rem 0 2rem;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+body:not(.is-guest) .summary-card {
+  min-height: 5.6rem;
+  padding: 0.9rem 1rem;
+  border: 0;
+  border-right: 1px solid #e0e5e1;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .summary-card:last-child { border-right: 0; }
+body:not(.is-guest) .summary-label { color: #66736b; font-size: 0.66rem; }
+body:not(.is-guest) .summary-value { color: var(--ink-strong); font-size: 1.55rem; font-weight: 650; }
+
+body:not(.is-guest) .account-management {
+  margin: 2.2rem 0;
+  padding-top: 1.35rem;
+  border-top-color: var(--line-strong);
+}
+
+body:not(.is-guest) .account-management-heading h3 { font-size: 1rem; }
+body:not(.is-guest) .account-management-heading p { color: #66716b; }
+
+body:not(.is-guest) .account-table th {
+  color: #627068;
+  letter-spacing: 0;
+}
+
+body:not(.is-guest) .account-table td { color: #29332d; }
+body:not(.is-guest) .account-table .delete-account-button { text-transform: none; }
+
+body:not(.is-guest) .modal-backdrop {
+  background: rgba(18, 28, 23, 0.66);
+  backdrop-filter: blur(4px);
+}
+
+body:not(.is-guest) .login-modal,
+body:not(.is-guest) .booking-modal {
+  border: 1px solid #d6ddda;
+  border-radius: 4px;
+  box-shadow: var(--shadow-raised);
+}
+
+body.is-guest,
+body.is-guest .public-signup {
+  background-color: #f1f2ee;
+  background-image:
+    linear-gradient(rgba(44, 62, 53, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(44, 62, 53, 0.02) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.landing-topbar { border-color: #cbd2cd; }
+.landing-brand-mark { background: var(--brand-red); }
+.landing-eyebrow { color: var(--action-red); }
+.landing-primary { background: var(--action-red); }
+.landing-primary:hover { background: #a90f17; }
+.landing-image-wrap::before { background: var(--brand-red); }
+.landing-services { border-color: #cbd2cd; }
+.landing-services > span + span::before { background: var(--brand-red); }
+
+.signup-form {
+  border-color: #cfd6d1;
+  border-radius: 4px;
+  box-shadow: var(--shadow-soft);
+}
+
+.public-signup .landing-topbar { border-color: #cbd2cd; }
+.signup-copy .landing-eyebrow { color: var(--action-red); }
+
+@media (max-width: 760px) {
+  body:not(.is-guest) { padding: 0 0.9rem 2rem; }
+  body:not(.is-guest) #app-header {
+    padding: 0.9rem 1rem;
+    margin-left: calc(50% - 50vw);
+  }
+  body:not(.is-guest) #app-nav,
+  body:not(.is-guest) main { width: calc(100% - 1.8rem); }
+  body:not(.is-guest) #app-nav { margin-top: 0; }
+  body:not(.is-guest) .view { padding-top: 1.5rem; }
+  body:not(.is-guest) .summary-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body:not(.is-guest) .summary-card { border-bottom: 1px solid #e0e5e1; }
+  body:not(.is-guest) .summary-card:nth-child(2n) { border-right: 0; }
+  body:not(.is-guest) .summary-card:last-child { border-bottom: 0; }
+}
+
+@media (max-width: 420px) {
+  body:not(.is-guest) { padding-right: 0.65rem; padding-left: 0.65rem; }
+  body:not(.is-guest) #app-header { padding-right: 0.8rem; padding-left: 0.8rem; }
+  body:not(.is-guest) #app-nav,
+  body:not(.is-guest) main { width: calc(100% - 1.3rem); }
+  body:not(.is-guest) .view > h2 { font-size: 1.4rem; }
+  body:not(.is-guest) .mechanic-title { padding: 1rem; }
+  body:not(.is-guest) .mechanic-grid { gap: 0.7rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Contemporary actions: flat surfaces, restrained motion, distinct intent. */
+body:not(.is-guest) .view button:not(.nav-btn):not(.time-slot-button):not(.delete-account-button):not(.signup-existing-login):not(.approve-btn):not(.deny-btn):not(.cancel-btn):not(.details-btn):not(.secondary-action):not(.customer-action) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 2.7rem;
+  padding: 0.68rem 1rem;
+  border: 1px solid var(--action-red);
+  border-radius: 8px;
+  background: var(--action-red);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.15;
+  box-shadow: none;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+body:not(.is-guest) .view button:not(:disabled):not(.nav-btn):not(.time-slot-button):not(.delete-account-button):not(.signup-existing-login):not(.approve-btn):not(.deny-btn):not(.cancel-btn):not(.details-btn):not(.secondary-action):not(.customer-action):hover {
+  border-color: #a80f18;
+  background: #a80f18;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view button:not(:disabled):active { transform: translateY(0); }
+
+body:not(.is-guest) .view .btn-row button:first-child,
+body:not(.is-guest) .view .details-btn,
+body:not(.is-guest) .view .signup-existing-login {
+  border: 1px solid #c8d0cb;
+  border-radius: 8px;
+  background: #fff;
+  color: #35413a;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .btn-row button:first-child:hover,
+body:not(.is-guest) .view .details-btn:hover,
+body:not(.is-guest) .view .signup-existing-login:hover {
+  border-color: #98a69e;
+  background: #f2f5f2;
+  color: #202624;
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .approve-btn {
+  border-color: #287746;
+  border-radius: 8px;
+  background: #287746;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .approve-btn:hover {
+  border-color: #205f39;
+  background: #205f39;
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .deny-btn,
+body:not(.is-guest) .view .cancel-btn {
+  border-color: #bd1720;
+  border-radius: 8px;
+  background: #bd1720;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .deny-btn:hover,
+body:not(.is-guest) .view .cancel-btn:hover {
+  border-color: #a40f18;
+  background: #a40f18;
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .delete-account-button {
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+body:not(.is-guest) #app-header .account-controls button {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+body:not(.is-guest) #app-header .account-controls button:hover {
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+body:not(.is-guest) #login-form button[type="submit"] {
+  border-radius: 8px;
+  background: var(--action-red);
+  box-shadow: none;
+}
+
+.landing-actions .landing-login {
+  border: 1px solid #aab5ae;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.landing-actions .landing-login:hover {
+  border-color: #77857c;
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: none;
+}
+
+.landing-actions .landing-signup,
+.public-signup .landing-topbar > button {
+  border-radius: 8px;
+  background: #26312b;
+  box-shadow: none;
+}
+
+.landing-actions .landing-signup:hover,
+.public-signup .landing-topbar > button:hover {
+  background: #18211c;
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+.landing-hero-actions .landing-primary {
+  border-radius: 8px;
+  background: var(--action-red);
+  box-shadow: none;
+}
+
+.landing-hero-actions .landing-primary:hover {
+  background: #a80f18;
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+.landing-actions button:active,
+.landing-primary:active { transform: translateY(0); }
+
+body:not(.is-guest) .time-slot-button:not(:disabled) {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .time-slot-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+body:not(.is-guest) .time-slot-button.is-selected,
+body:not(.is-guest) .time-slot-button.is-selected:hover {
+  border-radius: 8px;
+  background: #bd1720;
+  transform: none;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .time-slot-button:disabled,
+body:not(.is-guest) .time-slot-button.is-booked,
+body:not(.is-guest) .time-slot-button.is-past {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view button:focus-visible,
+body:not(.is-guest) #app-header .account-controls button:focus-visible,
+.landing-actions button:focus-visible,
+.landing-hero-actions button:focus-visible {
+  outline: 3px solid rgba(189, 23, 32, 0.32);
+  outline-offset: 2px;
+}
+
+body:not(.is-guest) .account-table .delete-account-button {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .account-table .delete-account-button:hover {
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+/* Navigation tabs stay neutral; the active page is indicated by a charcoal underline. */
+body:not(.is-guest) #app-nav .nav-btn,
+body:not(.is-guest) #app-nav .nav-btn:hover,
+body:not(.is-guest) #app-nav .nav-btn.active,
+body:not(.is-guest) #app-nav .nav-btn.active:hover,
+body:not(.is-guest) #app-nav #booking-nav-button:not(.active),
+body:not(.is-guest) #app-nav #booking-nav-button:not(.active):hover {
+  border: 0;
+  background: #fff;
+  color: #344139;
+  box-shadow: none;
+}
+
+body:not(.is-guest) #app-nav .nav-btn.active {
+  color: #17201b;
+  font-weight: 750;
+}
+
+body:not(.is-guest) #app-nav .nav-btn.active::after { background: #344139; }
+
+body:not(.is-guest) .view .customer-action,
+body:not(.is-guest) .view .customer-action:hover,
+body:not(.is-guest) .view .primary-customer-action,
+body:not(.is-guest) .view .primary-customer-action:hover {
+  border: 1px solid #d6ddda;
+  border-top: 3px solid #aebbb3;
+  border-radius: 8px;
+  background: #fff;
+  color: #29342e;
+  box-shadow: none;
+  transform: none;
+}
+
+body:not(.is-guest) .view .customer-action:hover,
+body:not(.is-guest) .view .primary-customer-action:hover {
+  border-color: #aebbb3;
+  border-top-color: #738279;
+  background: #f7f9f7;
+}
+
+body:not(.is-guest) .view .primary-customer-action .customer-action-index { color: #78857d; }
+body:not(.is-guest) .view .primary-customer-action .customer-action-title { color: #26312b; }
+body:not(.is-guest) .view .primary-customer-action .customer-action-description { color: #65716a; }
+body:not(.is-guest) .view .primary-customer-action .customer-action-arrow { color: #56645c; }
+
+body:not(.is-guest) #app-nav #booking-nav-button:not(.active) {
+  color: #a9151d;
+  background: rgba(189, 23, 32, 0.055);
+}
+
+body:not(.is-guest) #app-nav #booking-nav-button:not(.active):hover {
+  color: #8f1018;
+  background: rgba(189, 23, 32, 0.1);
+}
+
+/* Customer-only home and garage surfaces stay separate from staff workspaces. */
+body:not(.is-guest) .customer-home {
+  padding-top: 2.35rem;
+}
+
+body:not(.is-guest) .customer-home-heading {
+  padding: 0 0 1.4rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.customer-home-eyebrow {
+  margin: 0 0 0.45rem;
+  color: var(--action-red);
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+body:not(.is-guest) .customer-home-heading h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 1.8rem;
+  font-weight: 650;
+}
+
+.customer-home-heading > p:last-child,
+.customer-view-heading > div > p:last-child {
+  margin: 0.55rem 0 0;
+  color: #647069;
+  font-size: 0.94rem;
+}
+
+.customer-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1.35rem 0 2rem;
+}
+
+body:not(.is-guest) .view .customer-action {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
+  min-width: 0;
+  min-height: 10.5rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #d6ddda;
+  border-top: 3px solid #aebbb3;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #29342e;
+  text-align: left;
+  box-shadow: none;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+body:not(.is-guest) .view .customer-action:hover {
+  border-color: #aebbb3;
+  border-top-color: var(--action-red);
+  background: #fff;
+  color: #202624;
+  transform: translateY(-2px);
+  box-shadow: none;
+}
+
+.customer-action-index {
+  color: #78857d;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.customer-action-title {
+  grid-column: 1 / -1;
+  margin-top: 1.1rem;
+  color: #26312b;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.customer-action-description {
+  grid-column: 1 / -1;
+  align-self: end;
+  margin-top: 0.45rem;
+  color: #65716a;
+  font-size: 0.79rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.customer-action-arrow {
+  color: var(--action-red);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+body:not(.is-guest) .view .primary-customer-action {
+  border-color: var(--action-red);
+  border-top-color: #9f1019;
+  background: var(--action-red);
+  color: #fff;
+}
+
+body:not(.is-guest) .view .primary-customer-action:hover {
+  border-color: #a80f18;
+  border-top-color: #850d15;
+  background: #a80f18;
+  color: #fff;
+}
+
+.primary-customer-action .customer-action-index { color: #f0797e; }
+.primary-customer-action .customer-action-title { color: #fff; }
+.primary-customer-action .customer-action-description { color: #d3d9d5; }
+.primary-customer-action .customer-action-arrow { color: #ff8c91; }
+
+.customer-home-details,
+.customer-vehicles-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 0.7fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+body:not(.is-guest) .customer-home-panel {
+  min-width: 0;
+  padding: 1rem 1.1rem;
+  border: 0;
+  border-top: 2px solid #cbd4cf;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.customer-home-panel-heading,
+.customer-view-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.customer-home-panel-heading { margin-bottom: 0.7rem; }
+.customer-home-panel-heading h3 { margin: 0; }
+
+.customer-count {
+  flex: 0 0 auto;
+  color: #66736b;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.customer-home-vehicles,
+.customer-vehicle-list { display: grid; gap: 0.5rem; }
+
+.customer-vehicle-item {
+  padding: 0.75rem 0;
+  border-top: 1px solid #e3e8e4;
+}
+
+.customer-vehicle-item:first-child { border-top: 0; }
+.customer-vehicle-item h4 { margin: 0; color: #28332d; font-size: 0.9rem; }
+.customer-vehicle-item p { margin: 0.25rem 0 0; color: #65716a; font-size: 0.77rem; }
+.next-visit-panel { border-top-color: var(--action-red) !important; }
+.next-visit-panel h3 { margin: 0 0 0.7rem; }
+.customer-next-visit-summary { margin: 0 0 0.7rem; color: #38453d; font-size: 0.87rem; line-height: 1.5; }
+
+body:not(.is-guest) .customer-vehicles-view { padding-top: 2.35rem; }
+.customer-view-heading { margin-bottom: 1.4rem; }
+.customer-view-heading h2 { margin: 0; color: var(--ink-strong); font-size: 1.65rem; }
+.customer-vehicles-layout { grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr); }
+.add-customer-vehicle-panel { border-top-color: var(--action-red) !important; }
+.add-customer-vehicle-panel .vehicle-form-grid { max-width: none; }
+
+@media (max-width: 900px) {
+  .customer-action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .customer-home-details,
+  .customer-vehicles-layout { grid-template-columns: 1fr; }
+  body:not(.is-guest) .view .customer-action { min-height: 9.5rem; padding: 0.85rem; }
+}
+
+@media (max-width: 390px) {
+  .customer-action-grid { gap: 0.55rem; }
+  body:not(.is-guest) .view .customer-action { min-height: 9rem; padding: 0.72rem; }
+  .customer-action-title { font-size: 0.92rem; }
+  .customer-action-description { font-size: 0.74rem; }
+  .customer-view-heading { align-items: flex-start; flex-direction: column; }
+}
+
+body:not(.is-guest) .view .delete-account-button {
+  border-color: #d7a5a8;
+  background: #fff;
+  color: #a3121b;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .view .delete-account-button:hover {
+  border-color: #bc4b52;
+  background: #fff1f1;
+  color: #8f0e17;
+  box-shadow: none;
+}
+
+body:not(.is-guest) #app-header .account-controls button {
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f6f8f6;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+body:not(.is-guest) #app-header .account-controls button:hover {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+}
+
+body:not(.is-guest) #login-form button[type="submit"] {
+  min-height: 2.9rem;
+  border: 1px solid var(--action-red);
+  border-radius: 8px;
+  background: var(--action-red);
+  font-weight: 650;
+  box-shadow: none;
+}
+
+.landing-actions .landing-login,
+.landing-actions .landing-signup,
+.landing-hero-actions .landing-primary,
+.public-signup .landing-topbar > button {
+  min-height: 2.8rem;
+  border-radius: 8px;
+  box-shadow: none;
+  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.landing-actions .landing-login:hover,
+.public-signup .landing-topbar > button:hover {
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+.landing-actions .landing-login {
+  border: 1px solid #aab5ae;
+  background: transparent;
+  color: #26312b;
+}
+
+.landing-actions .landing-login:hover {
+  border-color: #77857c;
+  background: rgba(255, 255, 255, 0.72);
+  color: #18211c;
+}
+
+.landing-actions .landing-signup {
+  border: 1px solid #26312b;
+  background: #26312b;
+  color: #fff;
+}
+
+.landing-actions .landing-signup:hover {
+  border-color: #18211c;
+  background: #18211c;
+  color: #fff;
+}
+
+.public-signup .landing-topbar > button {
+  border: 1px solid #aab5ae;
+  background: transparent;
+  color: #26312b;
+}
+
+.landing-hero-actions .landing-primary {
+  border: 1px solid var(--action-red);
+  background: var(--action-red);
+  color: #fff;
+}
+
+.landing-hero-actions .landing-primary:hover {
+  border-color: #a80f18;
+  background: #a80f18;
+  color: #fff;
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+body:not(.is-guest) button:disabled {
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  .nav-btn,
+  .booking-card,
+  .history-card { transition: none; }
+}
+
+/* Keep customer navigation and Home options on consistent white surfaces. */
+body:not(.is-guest) #app-nav .nav-btn,
+body:not(.is-guest) #app-nav .nav-btn:hover,
+body:not(.is-guest) #app-nav .nav-btn.active,
+body:not(.is-guest) #app-nav .nav-btn.active:hover,
+body:not(.is-guest) #app-nav #booking-nav-button:not(.active),
+body:not(.is-guest) #app-nav #booking-nav-button:not(.active):hover {
+  border: 1px solid #d6ddda;
+  border-radius: 8px;
+  background: #fff;
+  color: #344139;
+  box-shadow: none;
+}
+
+body:not(.is-guest) #app-nav .nav-btn.active,
+body:not(.is-guest) #app-nav .nav-btn.active:hover {
+  color: #17201b;
+  font-weight: 750;
+}
+
+body:not(.is-guest) #app-nav .nav-btn.active::after { background: #344139; }
+
+body:not(.is-guest) #view-customer-home .customer-action,
+body:not(.is-guest) #view-customer-home .customer-action:hover,
+body:not(.is-guest) #view-customer-home .customer-action.primary-customer-action,
+body:not(.is-guest) #view-customer-home .customer-action.primary-customer-action:hover {
+  border: 1px solid #d6ddda;
+  border-top: 3px solid #aebbb3;
+  border-radius: 8px;
+  background: #fff;
+  color: #29342e;
+  box-shadow: none;
+  transform: none;
+}
+
+body:not(.is-guest) #view-customer-home .customer-action:hover {
+  border-color: #aebbb3;
+  border-top-color: #738279;
+  background: #f7f9f7;
+}
+
+body:not(.is-guest) #view-customer-home .primary-customer-action .customer-action-index { color: #78857d; }
+body:not(.is-guest) #view-customer-home .primary-customer-action .customer-action-title { color: #26312b; }
+body:not(.is-guest) #view-customer-home .primary-customer-action .customer-action-description { color: #65716a; }
+body:not(.is-guest) #view-customer-home .primary-customer-action .customer-action-arrow { color: #56645c; }
