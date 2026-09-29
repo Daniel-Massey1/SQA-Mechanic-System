@@ -15,11 +15,14 @@ The server starts at `http://localhost:3001`. Open that address in a browser to 
 To stop the server, press `Ctrl+C` in the terminal.
 
 ## Demo Accounts
-Four mock accounts:
-customer1 / 123
-customer2 / 123
-mechanic1 / 123
-manager1 / 123
+The prototype includes four fixed demo accounts:
+
+- `customer1` / `123`
+- `customer2` / `123`
+- `mechanic1` / `123`
+- `manager1` / `123`
+
+The backend verifies these credentials and issues signed, expiring bearer tokens. Accounts and passwords are hardcoded for demonstration, so this is not production-ready account management.
 
 
 ### Recommended: DB Browser for SQLite
@@ -63,7 +66,7 @@ The application is split into a static frontend and a Node.js backend. The backe
 4. Use **My Bookings** to view or cancel bookings.
 5. Use **Vehicle History** to view the selected vehicle's previous records.
 
-This prototype uses sample customer data and does not include real authentication.
+The prototype uses sample customer data and fixed demo accounts with backend-verified login. It does not include production account management such as user registration or password recovery.
 
 ## Project structure
 

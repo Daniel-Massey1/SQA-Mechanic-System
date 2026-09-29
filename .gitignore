@@ -38,3 +38,4 @@ Desktop.ini
 backend/db/portal.db
 backend/db/portal.db-shm
 backend/db/portal.db-wal
+backend/.auth-secret

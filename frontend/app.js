@@ -1,32 +1,31 @@
 // --- Config -----------------------------------------------------------
 const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3001/api' : '/api';
 
-// Mocked "logged in customer" for the prototype. Replace with real auth
-// (session/JWT) once the auth/role module exists - everything else here
-// should keep working as long as CURRENT_CUSTOMER_ID is set correctly.
 const DEFAULT_CUSTOMER_ID = 1;
 
-const MOCK_ACCOUNTS = [
-  { username: 'customer1', password: '123', role: 'customer', customerId: 1 },
-  { username: 'customer2', password: '123', role: 'customer', customerId: 2 },
-  { username: 'mechanic1', password: '123', role: 'mechanic' },
-  { username: 'manager1', password: '123', role: 'manager' },
-];
-
-const STORED_ACCOUNT_KEY = 'mechanics-portal-account';
+const STORED_SESSION_KEY = 'mechanics-portal-session';
 let loggedInAccount = null;
+let authToken = null;
 
 function restoreLoggedInAccount() {
-  const storedUsername = localStorage.getItem(STORED_ACCOUNT_KEY);
-  if (!storedUsername) return;
+  localStorage.removeItem('mechanics-portal-account');
+  const storedSession = localStorage.getItem(STORED_SESSION_KEY);
+  if (!storedSession) return;
 
-  loggedInAccount = MOCK_ACCOUNTS.find((account) => account.username === storedUsername) || null;
-  if (!loggedInAccount) localStorage.removeItem(STORED_ACCOUNT_KEY);
+  try {
+    const session = JSON.parse(storedSession);
+    if (typeof session.token !== 'string' || !session.account?.username) throw new Error('Invalid session');
+    authToken = session.token;
+  } catch {
+    authToken = null;
+    loggedInAccount = null;
+    localStorage.removeItem(STORED_SESSION_KEY);
+  }
 }
 
 function requestHeaders(includeJson = false) {
   const headers = includeJson ? { 'Content-Type': 'application/json' } : {};
-  if (loggedInAccount) headers['X-Mock-Username'] = loggedInAccount.username;
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   return headers;
 }
 
@@ -42,7 +41,7 @@ const bookingState = {
   notes: '',
 };
 
-// --- Mock login --------------------------------------------------------
+// --- Login and session management -------------------------------------
 const accountButton = document.getElementById('account-button');
 const accountName = document.getElementById('account-name');
 const loginModal = document.getElementById('login-modal');
@@ -88,7 +87,8 @@ function clearPrivateVehicleData() {
 accountButton.addEventListener('click', () => {
   if (loggedInAccount) {
     loggedInAccount = null;
-    localStorage.removeItem(STORED_ACCOUNT_KEY);
+    authToken = null;
+    localStorage.removeItem(STORED_SESSION_KEY);
     clearPrivateVehicleData();
     updateAccountControls();
     if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
@@ -102,28 +102,39 @@ loginModal.addEventListener('click', (event) => {
   if (event.target === loginModal) closeLoginModal();
 });
 
-loginForm.addEventListener('submit', (event) => {
+loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const formData = new FormData(loginForm);
-  const account = MOCK_ACCOUNTS.find(
-    (mockAccount) => mockAccount.username === formData.get('username')
-      && mockAccount.password === formData.get('password')
-  );
+  loginError.textContent = '';
 
-  if (!account) {
-    loginError.textContent = 'Incorrect username or password.';
-    return;
-  }
+  try {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: formData.get('username'),
+        password: formData.get('password'),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      loginError.textContent = data.error || 'Unable to log in.';
+      return;
+    }
 
-  loggedInAccount = account;
-  localStorage.setItem(STORED_ACCOUNT_KEY, account.username);
-  updateAccountControls();
-  closeLoginModal();
-  if (account.role === 'customer') loadVehicleOptions('vehicle-select');
-  if (account.role === 'mechanic') {
-    document.getElementById('bookings-nav-button').click();
+    authToken = data.token;
+    loggedInAccount = data.account;
+    localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ token: authToken, account: loggedInAccount }));
+    updateAccountControls();
+    closeLoginModal();
+    if (loggedInAccount.role === 'customer') loadVehicleOptions('vehicle-select');
+    if (loggedInAccount.role === 'mechanic') {
+      document.getElementById('bookings-nav-button').click();
+    }
+    if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
+  } catch {
+    loginError.textContent = 'Could not reach the server. Please try again.';
   }
-  if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
 });
 
 // --- Navigation between the three top-level views ----------------------
@@ -803,23 +814,161 @@ async function loadHistory(vehicleId) {
   }
 
   container.innerHTML = '';
+
+  // Group entries by lineage so each edited entry has one visible card
+  // with a click-to-expand dropdown for its older versions.
+  const groups = new Map();
   data.history.forEach((entry) => {
+    if (!groups.has(entry.root_entry_id)) groups.set(entry.root_entry_id, []);
+    groups.get(entry.root_entry_id).push(entry);
+  });
+
+  const sortedGroups = [...groups.values()].sort(
+    (a, b) => new Date(b[0].created_at.replace(' ', 'T')) - new Date(a[0].created_at.replace(' ', 'T'))
+  );
+
+  sortedGroups.forEach((groupEntries) => {
+    // The non-superseded entry is the current version; fall back to the first
+    // entry so a lineage never disappears if every row were somehow flagged.
+    const current = groupEntries.find((entry) => !entry.is_superseded) || groupEntries[0];
+    const olderVersions = groupEntries.filter((entry) => entry.id !== current.id);
+
     const card = document.createElement('div');
     card.className = 'history-card';
-    const badgeClass = entry.status === 'fixed' ? 'badge-fixed' : 'badge-flagged';
+    const badgeClass = current.status === 'fixed' ? 'badge-fixed' : 'badge-flagged';
 
     card.innerHTML = `
-      <strong>${entry.fault_description}</strong>
-      <span class="badge ${badgeClass}">${entry.status.replace('_', ' ')}</span><br />
-      Severity: ${entry.severity} — ${new Date(entry.created_at.replace(' ', 'T')).toLocaleString()}
+      <strong>${current.fault_description}</strong>
+      <span class="badge ${badgeClass}">${current.status.replace('_', ' ')}</span><br />
+      Severity: ${current.severity} — ${new Date(current.created_at.replace(' ', 'T')).toLocaleString()}
     `;
+
+    // Only the current (non-superseded) version of an entry can be edited;
+    // older versions stay visible for the record but are read-only.
+    if (loggedInAccount?.role === 'mechanic') {
+      const editBtn = document.createElement('button');
+      editBtn.textContent = 'Edit';
+      editBtn.className = 'details-btn';
+      editBtn.addEventListener('click', () => openDiagnosticEditModal(current, vehicleId));
+      card.appendChild(editBtn);
+    }
+
+    if (olderVersions.length > 0) {
+      const details = document.createElement('details');
+      details.className = 'history-edit-trail';
+
+      const summary = document.createElement('summary');
+      summary.textContent = `${olderVersions.length} earlier ${olderVersions.length === 1 ? 'version' : 'versions'}`;
+      details.appendChild(summary);
+
+      olderVersions.forEach((entry) => {
+        const oldBadgeClass = entry.status === 'fixed' ? 'badge-fixed' : 'badge-flagged';
+        const oldEntry = document.createElement('div');
+        oldEntry.className = 'history-card history-card-old';
+        oldEntry.innerHTML = `
+          <strong>${entry.fault_description}</strong>
+          <span class="badge ${oldBadgeClass}">${entry.status.replace('_', ' ')}</span><br />
+          Severity: ${entry.severity} — ${new Date(entry.created_at.replace(' ', 'T')).toLocaleString()}
+        `;
+        details.appendChild(oldEntry);
+      });
+
+      card.appendChild(details);
+    }
+
     container.appendChild(card);
   });
 }
 
+// --- Diagnostic entry editing (mechanic only) ------------------------------
+let editingDiagnosticId = null;
+let editingDiagnosticVehicleId = null;
+
+function openDiagnosticEditModal(entry, vehicleId) {
+  editingDiagnosticId = entry.id;
+  editingDiagnosticVehicleId = vehicleId;
+
+  const resultBox = document.getElementById('diagnostic-edit-result');
+  resultBox.textContent = '';
+  resultBox.className = '';
+
+  document.getElementById('edit-fault-description').value = entry.fault_description;
+  document.getElementById('edit-diagnostic-severity').value = entry.severity;
+  document.getElementById('edit-diagnostic-status').value = entry.status;
+
+  document.getElementById('diagnostic-edit-modal').hidden = false;
+}
+
+function closeDiagnosticEditModal() {
+  document.getElementById('diagnostic-edit-modal').hidden = true;
+  editingDiagnosticId = null;
+  editingDiagnosticVehicleId = null;
+}
+
+document.getElementById('close-diagnostic-edit-modal').addEventListener('click', closeDiagnosticEditModal);
+document.getElementById('diagnostic-edit-modal').addEventListener('click', (event) => {
+  if (event.target.id === 'diagnostic-edit-modal') closeDiagnosticEditModal();
+});
+
+document.getElementById('diagnostic-edit-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const resultBox = document.getElementById('diagnostic-edit-result');
+  const formData = new FormData(form);
+
+  try {
+    const res = await fetch(`${API_BASE}/mechanics/diagnostics/${editingDiagnosticId}`, {
+      method: 'PUT',
+      headers: requestHeaders(true),
+      body: JSON.stringify({
+        faultDescription: formData.get('faultDescription'),
+        severity: formData.get('severity'),
+        status: formData.get('status'),
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      resultBox.textContent = data.error || 'Unable to save changes.';
+      resultBox.className = 'result-error';
+      return;
+    }
+
+    const vehicleId = editingDiagnosticVehicleId;
+    closeDiagnosticEditModal();
+    loadHistory(vehicleId);
+  } catch (err) {
+    resultBox.textContent = 'Could not reach the server. Please try again.';
+    resultBox.className = 'result-error';
+  }
+});
+
 // --- Initial load ----------------------------------------------------------
-restoreLoggedInAccount();
-updateAccountControls();
-const slotInput = document.getElementById('slot-time');
-slotInput.min = new Date(Date.now() + 60 * 1000).toISOString().slice(0, 16);
-if (loggedInAccount) loadVehicleOptions('vehicle-select');
+async function initializeApp() {
+  restoreLoggedInAccount();
+
+  if (authToken) {
+    try {
+      const response = await fetch(`${API_BASE}/auth/session`, { headers: requestHeaders() });
+      const data = await response.json();
+      if (response.ok) {
+        loggedInAccount = data.account;
+        localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ token: authToken, account: loggedInAccount }));
+      } else {
+        authToken = null;
+        loggedInAccount = null;
+        localStorage.removeItem(STORED_SESSION_KEY);
+        clearPrivateVehicleData();
+      }
+    } catch {
+      loggedInAccount = null;
+    }
+  }
+
+  updateAccountControls();
+  const slotInput = document.getElementById('slot-time');
+  slotInput.min = new Date(Date.now() + 60 * 1000).toISOString().slice(0, 16);
+  if (loggedInAccount?.role === 'customer') loadVehicleOptions('vehicle-select');
+}
+
+initializeApp();
