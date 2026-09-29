@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../db/db');
-const { requireAccount } = require('../auth');
+const { requireAccount, denyAccess } = require('../auth');
 
 const router = express.Router();
 const VALID_SEVERITIES = ['low', 'medium', 'high'];
@@ -10,7 +10,7 @@ const VALID_CHECKLIST_SERVICE_TYPES = ['basic_service', 'full_service', 'wof'];
 // Return approval requests and checklist templates for mechanics.
 router.get('/dashboard', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
-    return res.status(403).json({ error: 'Only mechanic accounts can view the mechanic portal.' });
+    return denyAccess(req, res, 'Only mechanic accounts can view the mechanic portal.');
   }
 
   const db = getDb();
@@ -33,7 +33,7 @@ router.get('/dashboard', requireAccount, (req, res) => {
 // Return confirmed appointments for the mechanic's schedule.
 router.get('/upcoming', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
-    return res.status(403).json({ error: 'Only mechanic accounts can view upcoming bookings.' });
+    return denyAccess(req, res, 'Only mechanic accounts can view upcoming bookings.');
   }
 
   const bookings = getDb().prepare(
@@ -51,7 +51,7 @@ router.get('/upcoming', requireAccount, (req, res) => {
 // Return bookings completed by a mechanic.
 router.get('/completed', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
-    return res.status(403).json({ error: 'Only mechanic accounts can view completed bookings.' });
+    return denyAccess(req, res, 'Only mechanic accounts can view completed bookings.');
   }
 
   const bookings = getDb().prepare(
@@ -69,7 +69,7 @@ router.get('/completed', requireAccount, (req, res) => {
 // Return items for the service checklist selected by a mechanic.
 router.get('/checklists/:serviceType', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
-    return res.status(403).json({ error: 'Only mechanic accounts can view service checklists.' });
+    return denyAccess(req, res, 'Only mechanic accounts can view service checklists.');
   }
   if (!VALID_CHECKLIST_SERVICE_TYPES.includes(req.params.serviceType)) {
     return res.status(400).json({ error: 'Choose a valid service type.' });
@@ -86,7 +86,7 @@ router.get('/checklists/:serviceType', requireAccount, (req, res) => {
 // Save a compliant job after every checklist item is completed.
 router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
-    return res.status(403).json({ error: 'Only mechanic accounts can save checklist jobs.' });
+    return denyAccess(req, res, 'Only mechanic accounts can save checklist jobs.');
   }
 
   const { bookingId, serviceType, completedItems } = req.body;
@@ -130,7 +130,7 @@ router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
 // Let mechanics approve or deny a pending request.
 router.post('/bookings/:id/decision', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
-    return res.status(403).json({ error: 'Only mechanic accounts can approve or deny bookings.' });
+    return denyAccess(req, res, 'Only mechanic accounts can approve or deny bookings.');
   }
 
   const { decision } = req.body;
@@ -162,7 +162,7 @@ router.post('/bookings/:id/decision', requireAccount, (req, res) => {
 // Save a new diagnostic record without changing existing records.
 router.post('/diagnostics', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
-    return res.status(403).json({ error: 'Only mechanic accounts can add diagnostic entries.' });
+    return denyAccess(req, res, 'Only mechanic accounts can add diagnostic entries.');
   }
 
   const { vehicleId, faultDescription, severity, status } = req.body;
@@ -190,7 +190,7 @@ router.post('/diagnostics', requireAccount, (req, res) => {
 // (append-only trail: the old row is kept as-is, so history is never rewritten).
 router.put('/diagnostics/:id', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
-    return res.status(403).json({ error: 'Only mechanic accounts can edit diagnostic entries.' });
+    return denyAccess(req, res, 'Only mechanic accounts can edit diagnostic entries.');
   }
 
   const { faultDescription, severity, status } = req.body;

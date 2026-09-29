@@ -1,6 +1,6 @@
 const express = require('express');
 const { getDb } = require('../db/db');
-const { requireAccount } = require('../auth');
+const { requireAccount, denyAccess } = require('../auth');
 
 const router = express.Router();
 
@@ -20,7 +20,7 @@ router.get('/customer/:customerId', requireAccount, (req, res) => {
   const { customerId } = req.params;
 
   if (req.account.role === 'customer' && String(req.account.customerId) !== String(customerId)) {
-    return res.status(403).json({ error: 'You can only view your own bookings.' });
+    return denyAccess(req, res, 'You can only view your own bookings.');
   }
 
   const query = req.account.role === 'customer'
@@ -42,7 +42,7 @@ router.get('/customer/:customerId', requireAccount, (req, res) => {
 
 router.get('/all', requireAccount, (req, res) => {
   if (req.account.role === 'customer') {
-    return res.status(403).json({ error: 'Only mechanic and manager accounts can view all bookings.' });
+    return denyAccess(req, res, 'Only mechanic and manager accounts can view all bookings.');
   }
 
   const db = getDb();
@@ -78,7 +78,7 @@ router.post('/', requireAccount, (req, res) => {
   const { vehicleId, serviceType, slotStart, notes = '' } = req.body;
 
   if (req.account.role !== 'customer') {
-    return res.status(403).json({ error: 'Only customer accounts can create bookings.' });
+    return denyAccess(req, res, 'Only customer accounts can create bookings.');
   }
 
   if (!vehicleId || !serviceType || !slotStart) {
@@ -94,7 +94,7 @@ router.post('/', requireAccount, (req, res) => {
     return res.status(400).json({ error: 'Selected vehicle does not exist.' });
   }
   if (vehicle.customer_id !== req.account.customerId) {
-    return res.status(403).json({ error: 'You can only book a vehicle belonging to your account.' });
+    return denyAccess(req, res, 'You can only book a vehicle belonging to your account.');
   }
 
   const confirmationRef = generateConfirmationRef();
@@ -148,7 +148,7 @@ router.post('/:id/cancel', requireAccount, (req, res) => {
   }
 
   if (req.account.role === 'customer' && booking.booked_by !== req.account.username) {
-    return res.status(403).json({ error: 'You can only cancel your own bookings.' });
+    return denyAccess(req, res, 'You can only cancel your own bookings.');
   }
 
   const slotTime = new Date(booking.slot_start.replace(' ', 'T'));

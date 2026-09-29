@@ -1,32 +1,31 @@
 // --- Config -----------------------------------------------------------
 const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3001/api' : '/api';
 
-// Mocked "logged in customer" for the prototype. Replace with real auth
-// (session/JWT) once the auth/role module exists - everything else here
-// should keep working as long as CURRENT_CUSTOMER_ID is set correctly.
 const DEFAULT_CUSTOMER_ID = 1;
 
-const MOCK_ACCOUNTS = [
-  { username: 'customer1', password: '123', role: 'customer', customerId: 1 },
-  { username: 'customer2', password: '123', role: 'customer', customerId: 2 },
-  { username: 'mechanic1', password: '123', role: 'mechanic' },
-  { username: 'manager1', password: '123', role: 'manager' },
-];
-
-const STORED_ACCOUNT_KEY = 'mechanics-portal-account';
+const STORED_SESSION_KEY = 'mechanics-portal-session';
 let loggedInAccount = null;
+let authToken = null;
 
 function restoreLoggedInAccount() {
-  const storedUsername = localStorage.getItem(STORED_ACCOUNT_KEY);
-  if (!storedUsername) return;
+  localStorage.removeItem('mechanics-portal-account');
+  const storedSession = localStorage.getItem(STORED_SESSION_KEY);
+  if (!storedSession) return;
 
-  loggedInAccount = MOCK_ACCOUNTS.find((account) => account.username === storedUsername) || null;
-  if (!loggedInAccount) localStorage.removeItem(STORED_ACCOUNT_KEY);
+  try {
+    const session = JSON.parse(storedSession);
+    if (typeof session.token !== 'string' || !session.account?.username) throw new Error('Invalid session');
+    authToken = session.token;
+  } catch {
+    authToken = null;
+    loggedInAccount = null;
+    localStorage.removeItem(STORED_SESSION_KEY);
+  }
 }
 
 function requestHeaders(includeJson = false) {
   const headers = includeJson ? { 'Content-Type': 'application/json' } : {};
-  if (loggedInAccount) headers['X-Mock-Username'] = loggedInAccount.username;
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   return headers;
 }
 
@@ -42,7 +41,7 @@ const bookingState = {
   notes: '',
 };
 
-// --- Mock login --------------------------------------------------------
+// --- Login and session management -------------------------------------
 const accountButton = document.getElementById('account-button');
 const accountName = document.getElementById('account-name');
 const loginModal = document.getElementById('login-modal');
@@ -79,7 +78,8 @@ function updateAccountControls() {
 accountButton.addEventListener('click', () => {
   if (loggedInAccount) {
     loggedInAccount = null;
-    localStorage.removeItem(STORED_ACCOUNT_KEY);
+    authToken = null;
+    localStorage.removeItem(STORED_SESSION_KEY);
     updateAccountControls();
     if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
     return;
@@ -92,28 +92,39 @@ loginModal.addEventListener('click', (event) => {
   if (event.target === loginModal) closeLoginModal();
 });
 
-loginForm.addEventListener('submit', (event) => {
+loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const formData = new FormData(loginForm);
-  const account = MOCK_ACCOUNTS.find(
-    (mockAccount) => mockAccount.username === formData.get('username')
-      && mockAccount.password === formData.get('password')
-  );
+  loginError.textContent = '';
 
-  if (!account) {
-    loginError.textContent = 'Incorrect username or password.';
-    return;
-  }
+  try {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: formData.get('username'),
+        password: formData.get('password'),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      loginError.textContent = data.error || 'Unable to log in.';
+      return;
+    }
 
-  loggedInAccount = account;
-  localStorage.setItem(STORED_ACCOUNT_KEY, account.username);
-  updateAccountControls();
-  closeLoginModal();
-  loadVehicleOptions('vehicle-select');
-  if (account.role === 'mechanic') {
-    document.getElementById('bookings-nav-button').click();
+    authToken = data.token;
+    loggedInAccount = data.account;
+    localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ token: authToken, account: loggedInAccount }));
+    updateAccountControls();
+    closeLoginModal();
+    if (loggedInAccount.role === 'customer') loadVehicleOptions('vehicle-select');
+    if (loggedInAccount.role === 'mechanic') {
+      document.getElementById('bookings-nav-button').click();
+    }
+    if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
+  } catch {
+    loginError.textContent = 'Could not reach the server. Please try again.';
   }
-  if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
 });
 
 // --- Navigation between the three top-level views ----------------------
@@ -204,7 +215,7 @@ document.getElementById('confirm-booking').addEventListener('click', async () =>
 
 // --- Load vehicle options for both the booking flow and history view ----
 async function loadVehicleOptions(selectElementId) {
-  const res = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`);
+  const res = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`, { headers: requestHeaders() });
   const data = await res.json();
   const select = document.getElementById(selectElementId);
   select.innerHTML = '';
@@ -765,8 +776,13 @@ async function loadHistory(vehicleId) {
   }
   container.textContent = 'Loading...';
 
-  const res = await fetch(`${API_BASE}/vehicles/${vehicleId}/history`);
+  const res = await fetch(`${API_BASE}/vehicles/${vehicleId}/history`, { headers: requestHeaders() });
   const data = await res.json();
+
+  if (!res.ok) {
+    container.textContent = data.error || 'Unable to load vehicle history.';
+    return;
+  }
 
   if (data.history.length === 0) {
     container.textContent = data.message || 'No history found.';
@@ -904,6 +920,28 @@ document.getElementById('diagnostic-edit-form').addEventListener('submit', async
 });
 
 // --- Initial load ----------------------------------------------------------
-restoreLoggedInAccount();
-updateAccountControls();
-loadVehicleOptions('vehicle-select');
+async function initializeApp() {
+  restoreLoggedInAccount();
+
+  if (authToken) {
+    try {
+      const response = await fetch(`${API_BASE}/auth/session`, { headers: requestHeaders() });
+      const data = await response.json();
+      if (response.ok) {
+        loggedInAccount = data.account;
+        localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ token: authToken, account: loggedInAccount }));
+      } else {
+        authToken = null;
+        loggedInAccount = null;
+        localStorage.removeItem(STORED_SESSION_KEY);
+      }
+    } catch {
+      loggedInAccount = null;
+    }
+  }
+
+  updateAccountControls();
+  if (loggedInAccount?.role === 'customer') loadVehicleOptions('vehicle-select');
+}
+
+initializeApp();

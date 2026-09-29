@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
+const authRoutes = require('./routes/auth');
 const vehicleRoutes = require('./routes/vehicles');
 const bookingRoutes = require('./routes/bookings');
 const mechanicRoutes = require('./routes/mechanics');
@@ -22,6 +23,7 @@ const db = getDb();
 startWofReminderSchedule(db);
 
 // --- Customer Booking & Basic Portal routes ---
+app.use('/api/auth', authRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/mechanics', mechanicRoutes);
