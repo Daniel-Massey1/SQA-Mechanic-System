@@ -136,6 +136,31 @@
         <div id="step-1" class="step-panel active">
           <label for="vehicle-select">Select your vehicle</label>
           <select id="vehicle-select"></select>
+          <details class="add-vehicle-panel">
+            <summary>Add a vehicle</summary>
+            <form id="add-vehicle-form">
+              <div class="vehicle-form-grid">
+                <div>
+                  <label for="new-vehicle-plate">Registration plate</label>
+                  <input id="new-vehicle-plate" name="plate" type="text" maxlength="12" autocomplete="off" required />
+                </div>
+                <div>
+                  <label for="new-vehicle-make">Make</label>
+                  <input id="new-vehicle-make" name="make" type="text" maxlength="60" required />
+                </div>
+                <div>
+                  <label for="new-vehicle-model">Model</label>
+                  <input id="new-vehicle-model" name="model" type="text" maxlength="60" required />
+                </div>
+                <div>
+                  <label for="new-vehicle-wof">WOF expiry <span>(optional)</span></label>
+                  <input id="new-vehicle-wof" name="wofExpiry" type="date" />
+                </div>
+              </div>
+              <p id="add-vehicle-result" role="status"></p>
+              <button type="submit">Save vehicle</button>
+            </form>
+          </details>
           <button id="to-step-2">Next</button>
         </div>
 
@@ -182,7 +207,14 @@
     <!-- My bookings + cancellation -->
     <section id="view-bookings" class="view">
       <h2>My Bookings</h2>
-      <div id="bookings-list"></div>
+      <section id="upcoming-bookings-section" class="booking-group" aria-labelledby="upcoming-bookings-title">
+        <h3 id="upcoming-bookings-title">Upcoming</h3>
+        <div id="bookings-list"></div>
+      </section>
+      <section id="past-bookings-section" class="booking-group" aria-labelledby="past-bookings-title">
+        <h3 id="past-bookings-title">Past</h3>
+        <div id="past-bookings-list"></div>
+      </section>
     </section>
 
     <section id="view-completed" class="view">
