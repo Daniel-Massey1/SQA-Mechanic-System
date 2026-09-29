@@ -51,6 +51,102 @@ const bookingState = {
   slotStart: null,
   notes: '',
 };
+const DAILY_BOOKING_HOURS = Array.from({ length: 8 }, (_, index) => index + 9);
+let availabilityRequestId = 0;
+
+function localDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatSlotTime(hour) {
+  return new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function renderTimeSlots(date, bookedSlots) {
+  const container = document.getElementById('available-time-slots');
+  const message = document.getElementById('availability-message');
+  const booked = new Set(bookedSlots);
+  container.replaceChildren();
+
+  DAILY_BOOKING_HOURS.forEach((hour) => {
+    const startTime = `${String(hour).padStart(2, '0')}:00`;
+    const startDateTime = new Date(`${date}T${startTime}:00`);
+    const isBooked = booked.has(startTime);
+    const isPast = startDateTime.getTime() <= Date.now();
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'time-slot-button';
+    button.disabled = isBooked || isPast;
+    button.setAttribute('aria-pressed', 'false');
+
+    const period = document.createElement('span');
+    period.className = 'time-slot-period';
+    period.textContent = `${formatSlotTime(hour)} – ${formatSlotTime(hour + 1)}`;
+    const status = document.createElement('span');
+    status.className = 'time-slot-status';
+    status.textContent = isBooked ? 'Booked' : isPast ? 'Unavailable' : 'Available';
+    button.append(period, status);
+
+    if (isBooked) button.classList.add('is-booked');
+    if (isPast && !isBooked) button.classList.add('is-past');
+    button.addEventListener('click', () => {
+      container.querySelectorAll('.time-slot-button').forEach((slotButton) => {
+        slotButton.classList.remove('is-selected');
+        slotButton.setAttribute('aria-pressed', 'false');
+      });
+      button.classList.add('is-selected');
+      button.setAttribute('aria-pressed', 'true');
+      bookingState.slotStart = `${date} ${startTime}:00`;
+      message.textContent = `Selected ${period.textContent}.`;
+      message.className = 'availability-message is-selected';
+    });
+    container.appendChild(button);
+  });
+
+  const availableCount = container.querySelectorAll('.time-slot-button:not(:disabled)').length;
+  message.textContent = availableCount
+    ? 'Choose an available one-hour time slot.'
+    : 'There are no future time slots available on this date.';
+  message.className = 'availability-message';
+}
+
+async function loadAvailableTimeSlots() {
+  const date = document.getElementById('booking-date').value;
+  const container = document.getElementById('available-time-slots');
+  const message = document.getElementById('availability-message');
+  const requestId = ++availabilityRequestId;
+  bookingState.slotStart = null;
+  container.replaceChildren();
+
+  if (!date || loggedInAccount?.role !== 'customer') {
+    message.textContent = 'Choose a date to view available times.';
+    message.className = 'availability-message';
+    return;
+  }
+
+  message.textContent = 'Checking available times...';
+  message.className = 'availability-message';
+
+  try {
+    const response = await fetch(`${API_BASE}/bookings/availability?date=${encodeURIComponent(date)}`, {
+      headers: requestHeaders(),
+    });
+    const data = await response.json();
+    if (requestId !== availabilityRequestId) return;
+    if (!response.ok) {
+      message.textContent = data.error || 'Unable to check availability.';
+      return;
+    }
+    renderTimeSlots(date, data.bookedSlots);
+  } catch {
+    if (requestId === availabilityRequestId) message.textContent = 'Could not check availability. Please try again.';
+  }
+}
+
+document.getElementById('booking-date').addEventListener('change', loadAvailableTimeSlots);
 
 // --- Login and session management -------------------------------------
 const accountButton = document.getElementById('account-button');
@@ -193,6 +289,7 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
 
     if (btn.dataset.view === 'bookings') loadBookings();
     if (btn.dataset.view === 'completed') loadCompletedBookings();
+    if (btn.dataset.view === 'booking' && loggedInAccount?.role === 'customer') loadAvailableTimeSlots();
     if (btn.dataset.view === 'history') loadHistoryVehicleOptions();
     if (btn.dataset.view === 'mechanic') loadMechanicPortal();
     if (btn.dataset.view === 'manager') loadManagerPortal();
@@ -221,25 +318,24 @@ document.getElementById('back-to-1').addEventListener('click', () => goToStep(1)
 
 document.getElementById('to-step-3').addEventListener('click', () => {
   const serviceType = document.getElementById('service-type').value;
-  const slotTime = document.getElementById('slot-time').value;
-
-  if (!slotTime) {
-    alert('Please choose a time slot.');
+  if (!bookingState.slotStart) {
+    alert('Choose an available one-hour time slot.');
     return;
   }
 
-  if (new Date(slotTime).getTime() <= Date.now()) {
+  const selectedSlot = new Date(bookingState.slotStart.replace(' ', 'T'));
+  if (selectedSlot.getTime() <= Date.now()) {
     alert('Please choose a future booking time.');
+    loadAvailableTimeSlots();
     return;
   }
 
   bookingState.serviceType = serviceType;
-  bookingState.slotStart = slotTime.replace('T', ' ') + ':00';
   bookingState.notes = document.getElementById('booking-notes').value.trim();
 
   const vehicleLabel = document.getElementById('vehicle-select').selectedOptions[0].textContent;
   document.getElementById('confirm-summary').textContent =
-    `${vehicleLabel} — ${serviceType.replace('_', ' ')} on ${new Date(slotTime).toLocaleString()}`;
+    `${vehicleLabel} — ${serviceType.replace('_', ' ')} on ${selectedSlot.toLocaleString()}`;
 
   goToStep(3);
 });
@@ -262,11 +358,17 @@ document.getElementById('confirm-booking').addEventListener('click', async () =>
     if (!res.ok) {
       resultBox.textContent = data.error || 'Something went wrong.';
       resultBox.className = 'result-error';
+      if (res.status === 409) {
+        window.alert(data.error || 'That time slot is already taken. Please choose another time.');
+        await loadAvailableTimeSlots();
+        goToStep(2);
+      }
       return;
     }
 
     resultBox.textContent = `Booking request submitted and pending mechanic approval. Reference: ${data.booking.confirmation_ref}`;
     resultBox.className = 'result-success';
+    await loadAvailableTimeSlots();
     goToStep(1);
   } catch (err) {
     resultBox.textContent = 'Could not reach the server. Please try again.';
@@ -470,7 +572,7 @@ async function loadMechanicPortal() {
     }
     loadDiagnosticVehicleOptions(vehiclesData.vehicles || []);
     loadChecklistBookingOptions(upcomingData.bookings || []);
-    loadChecklistItems(document.getElementById('checklist-service-type').value);
+    updateChecklistServiceType();
 
     container.innerHTML = '';
     if (data.pendingBookings.length === 0) {
@@ -517,6 +619,22 @@ function loadChecklistBookingOptions(bookings) {
   });
 }
 
+function updateChecklistServiceType() {
+  const bookingSelect = document.getElementById('checklist-booking-id');
+  const serviceTypeSelect = document.getElementById('checklist-service-type');
+  const serviceType = bookingSelect.selectedOptions[0]?.dataset.serviceType || '';
+  serviceTypeSelect.disabled = true;
+
+  if (!serviceType) {
+    serviceTypeSelect.value = '';
+    document.getElementById('checklist-items').textContent = 'Select a confirmed booking to load its checklist.';
+    return;
+  }
+
+  serviceTypeSelect.value = serviceType;
+  loadChecklistItems(serviceType);
+}
+
 // Load checkbox items from the dedicated checklist table.
 async function loadChecklistItems(serviceType) {
   const container = document.getElementById('checklist-items');
@@ -546,20 +664,7 @@ async function loadChecklistItems(serviceType) {
   }
 }
 
-document.getElementById('checklist-service-type').addEventListener('change', (event) => {
-  loadChecklistItems(event.target.value);
-});
-
-document.getElementById('checklist-booking-id').addEventListener('change', (event) => {
-  const selectedOption = event.target.selectedOptions[0];
-  const serviceType = selectedOption?.dataset.serviceType;
-  if (!serviceType) return;
-
-  // Use the selected booking's service type for its checklist.
-  const serviceTypeSelect = document.getElementById('checklist-service-type');
-  serviceTypeSelect.value = serviceType;
-  loadChecklistItems(serviceType);
-});
+document.getElementById('checklist-booking-id').addEventListener('change', updateChecklistServiceType);
 
 // Save a compliant job only after every item has been checked.
 document.getElementById('checklist-job-form').addEventListener('submit', async (event) => {
@@ -582,7 +687,7 @@ document.getElementById('checklist-job-form').addEventListener('submit', async (
       headers: requestHeaders(true),
       body: JSON.stringify({
         bookingId: Number(formData.get('bookingId')),
-        serviceType: formData.get('serviceType'),
+        serviceType: document.getElementById('checklist-service-type').value,
         completedItems,
       }),
     });
@@ -595,7 +700,8 @@ document.getElementById('checklist-job-form').addEventListener('submit', async (
 
     resultBox.textContent = `Job #${data.jobId} saved as ${data.status}.`;
     resultBox.className = 'result-success';
-    loadChecklistItems(formData.get('serviceType'));
+    document.getElementById('checklist-booking-id').value = '';
+    updateChecklistServiceType();
   } catch (err) {
     resultBox.textContent = 'Could not reach the server. Please try again.';
     resultBox.className = 'result-error';
@@ -1153,9 +1259,13 @@ async function initializeApp() {
   }
 
   updateAccountControls();
-  const slotInput = document.getElementById('slot-time');
-  slotInput.min = new Date(Date.now() + 60 * 1000).toISOString().slice(0, 16);
-  if (loggedInAccount?.role === 'customer') loadVehicleOptions('vehicle-select');
+  const bookingDateInput = document.getElementById('booking-date');
+  bookingDateInput.min = localDateString();
+  bookingDateInput.value = localDateString();
+  if (loggedInAccount?.role === 'customer') {
+    loadVehicleOptions('vehicle-select');
+    loadAvailableTimeSlots();
+  }
 }
 
 initializeApp();

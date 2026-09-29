@@ -677,6 +677,83 @@ body.is-guest {
   #signup-message { flex-basis: auto; width: 100%; }
 }
 
+.time-slot-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.time-slot-heading h3 { margin: 0; font-size: 1rem; }
+.time-slot-heading > span { color: var(--muted); font-size: 0.8rem; }
+
+.time-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.time-slot-button {
+  display: flex;
+  min-width: 0;
+  min-height: 4rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #cbd1cd;
+  background: #fff;
+  color: #252927;
+  text-align: left;
+}
+
+.time-slot-button:not(:disabled):hover {
+  border-color: #c21720;
+  background: #fff8f8;
+  color: #252927;
+  box-shadow: none;
+}
+
+.time-slot-button.is-selected,
+.time-slot-button.is-selected:hover {
+  border-color: #c21720;
+  background: #c21720;
+  color: #fff;
+}
+
+.time-slot-period { font-size: 0.88rem; font-weight: 700; }
+.time-slot-status { color: #626965; font-size: 0.72rem; font-weight: 500; }
+.time-slot-button.is-selected .time-slot-status { color: #ffe3e4; }
+
+.time-slot-button:disabled,
+.time-slot-button.is-booked,
+.time-slot-button.is-past {
+  border-color: #e0e3e0;
+  background: #eceeeb;
+  color: #858b87;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.time-slot-button:disabled .time-slot-status { color: #858b87; }
+
+.availability-message {
+  min-height: 1.25rem;
+  margin: 0.55rem 0 0;
+  color: #626965;
+  font-size: 0.82rem;
+}
+
+.availability-message.is-selected { color: #27713b; font-weight: 650; }
+
+@media (max-width: 640px) {
+  .time-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 body:not(.is-guest) {
   min-height: 100vh;
   padding: clamp(1rem, 3vw, 2.25rem);
@@ -1140,4 +1217,47 @@ body:not(.is-guest) .booking-modal {
 @media (max-width: 420px) {
   .landing-topbar .landing-brand { max-width: 9.5rem; }
   .account-table { min-width: 32rem; }
+}
+
+body:not(.is-guest) .time-slot-button {
+  min-height: 4rem;
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #cbd1cd;
+  border-radius: 4px;
+  background: #fff;
+  color: #252927;
+  font-weight: 500;
+  text-align: left;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .time-slot-button:not(:disabled):hover {
+  border-color: #c21720;
+  background: #fff8f8;
+  color: #252927;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .time-slot-button.is-selected,
+body:not(.is-guest) .time-slot-button.is-selected:hover {
+  border-color: #c21720;
+  background: #c21720;
+  color: #fff;
+}
+
+body:not(.is-guest) .time-slot-button:disabled,
+body:not(.is-guest) .time-slot-button.is-booked,
+body:not(.is-guest) .time-slot-button.is-past {
+  border-color: #e0e3e0;
+  background: #eceeeb;
+  color: #858b87;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+body:not(.is-guest) .time-slot-button:disabled:hover { background: #eceeeb; color: #858b87; }
+
+@media (max-width: 640px) {
+  body:not(.is-guest) .time-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

@@ -20,6 +20,30 @@ function generateConfirmationRef() {
   return `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
+router.get('/availability', requireAccount, (req, res) => {
+  if (req.account.role !== 'customer') {
+    return denyAccess(req, res, 'Only customer accounts can check booking availability.');
+  }
+
+  const { date } = req.query;
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'Choose a valid booking date.' });
+  }
+  const parsedDate = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+    return res.status(400).json({ error: 'Choose a valid booking date.' });
+  }
+
+  const bookedSlots = getDb().prepare(
+    `SELECT DISTINCT substr(slot_start, 12, 5) AS time
+     FROM bookings
+     WHERE date(slot_start) = ? AND status IN ('pending', 'confirmed')
+     ORDER BY time`
+  ).all(date).map((row) => row.time);
+
+  return res.json({ date, bookedSlots });
+});
+
 /**
  * GET /api/bookings/customer/:customerId
  * Lists all bookings across a customer's vehicles (used for the cancel-a-booking screen).
