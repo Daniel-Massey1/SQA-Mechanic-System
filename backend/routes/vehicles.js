@@ -33,6 +33,42 @@ router.get('/customer/:customerId', requireAccount, (req, res) => {
   res.json({ vehicles });
 });
 
+router.post('/', requireAccount, (req, res) => {
+  if (req.account.role !== 'customer' || !Number.isInteger(req.account.customerId)) {
+    return denyAccess(req, res, 'Only customer accounts can add vehicles.');
+  }
+
+  const plate = typeof req.body?.plate === 'string' ? req.body.plate.trim().toUpperCase() : '';
+  const make = typeof req.body?.make === 'string' ? req.body.make.trim() : '';
+  const model = typeof req.body?.model === 'string' ? req.body.model.trim() : '';
+  const wofExpiry = typeof req.body?.wofExpiry === 'string' ? req.body.wofExpiry.trim() : '';
+
+  if (!/^[A-Z0-9 -]{2,12}$/.test(plate) || make.length < 1 || make.length > 60
+    || model.length < 1 || model.length > 60) {
+    return res.status(400).json({ error: 'Enter a valid registration plate, make, and model.' });
+  }
+  if (wofExpiry && (!/^\d{4}-\d{2}-\d{2}$/.test(wofExpiry)
+    || Number.isNaN(Date.parse(`${wofExpiry}T00:00:00Z`))
+    || new Date(`${wofExpiry}T00:00:00Z`).toISOString().slice(0, 10) !== wofExpiry)) {
+    return res.status(400).json({ error: 'WOF expiry must be a valid date.' });
+  }
+
+  try {
+    const result = getDb().prepare(
+      `INSERT INTO vehicles (customer_id, plate, make, model, wof_expiry)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(req.account.customerId, plate, make, model, wofExpiry || null);
+    const vehicle = getDb().prepare('SELECT * FROM vehicles WHERE id = ?').get(result.lastInsertRowid);
+    return res.status(201).json({ vehicle });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.code === 'SQLITE_CONSTRAINT') {
+      return res.status(409).json({ error: 'A vehicle with that registration plate already exists.' });
+    }
+    console.error(error);
+    return res.status(500).json({ error: 'Unable to add the vehicle.' });
+  }
+});
+
 /**
  * GET /api/vehicles/:vehicleId/history
  *

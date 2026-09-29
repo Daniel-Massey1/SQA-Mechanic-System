@@ -90,6 +90,14 @@ nav {
 .view.active { display: block; }
 .view > h2 { margin-top: 0; color: var(--ink); }
 
+.booking-group + .booking-group {
+  margin-top: 1.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.booking-group > h3 { margin: 0 0 0.75rem; color: var(--muted); font-size: 0.95rem; }
+
 .stepper { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
 .step { padding: 0.3rem 0.6rem; border-radius: 999px; background: #e7e7e7; color: var(--muted); font-size: 0.85rem; }
 .step.active { background: var(--action-red); color: #fff; }
@@ -123,6 +131,35 @@ button:hover { background: #a30613; }
 
 .btn-row { display: flex; gap: 0.5rem; }
 .btn-row button { flex: 1; }
+
+.add-vehicle-panel {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+}
+
+.add-vehicle-panel summary {
+  width: fit-content;
+  color: var(--action-red);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.vehicle-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 0.85rem;
+  max-width: 44rem;
+  margin-top: 0.65rem;
+}
+
+.vehicle-form-grid label span { color: var(--muted); font-weight: 400; }
+#add-vehicle-result { min-height: 1.2rem; margin: 0.6rem 0 0; }
+
+@media (max-width: 520px) {
+  .vehicle-form-grid { grid-template-columns: 1fr; }
+}
 
 #booking-result, #diagnostic-result, #checklist-result, .booking-card, .history-card {
   margin-top: 1rem;
@@ -854,6 +891,9 @@ body:not(.is-guest) h3 {
   color: #272d2a;
   font-size: 1.05rem;
 }
+
+body:not(.is-guest) .booking-group + .booking-group { border-color: #e2e5e2; }
+body:not(.is-guest) .booking-group > h3 { margin-bottom: 0.8rem; color: #555d59; font-size: 0.95rem; }
 
 body:not(.is-guest) label {
   margin-top: 1rem;

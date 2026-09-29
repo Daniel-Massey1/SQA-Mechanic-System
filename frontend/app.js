@@ -377,7 +377,7 @@ document.getElementById('confirm-booking').addEventListener('click', async () =>
 });
 
 // --- Load vehicle options for both the booking flow and history view ----
-async function loadVehicleOptions(selectElementId) {
+async function loadVehicleOptions(selectElementId, selectedVehicleId = null) {
   const res = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`, {
     headers: requestHeaders(),
   });
@@ -401,33 +401,99 @@ async function loadVehicleOptions(selectElementId) {
     opt.textContent = `${v.plate} - ${v.make} ${v.model}`;
     select.appendChild(opt);
   });
+  if (selectedVehicleId && data.vehicles.some((vehicle) => String(vehicle.id) === String(selectedVehicleId))) {
+    select.value = String(selectedVehicleId);
+  }
 }
+
+document.getElementById('add-vehicle-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const result = document.getElementById('add-vehicle-result');
+  result.textContent = '';
+  result.className = '';
+  const formData = new FormData(form);
+
+  try {
+    const response = await fetch(`${API_BASE}/vehicles`, {
+      method: 'POST',
+      headers: requestHeaders(true),
+      body: JSON.stringify({
+        plate: formData.get('plate'),
+        make: formData.get('make'),
+        model: formData.get('model'),
+        wofExpiry: formData.get('wofExpiry'),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      result.textContent = data.error || 'Unable to add vehicle.';
+      result.className = 'result-error';
+      return;
+    }
+
+    form.reset();
+    result.textContent = `${data.vehicle.plate} added to your vehicles.`;
+    result.className = 'result-success';
+    await loadVehicleOptions('vehicle-select', data.vehicle.id);
+  } catch {
+    result.textContent = 'Could not reach the server. Please try again.';
+    result.className = 'result-error';
+  }
+});
 
 // --- Customer and mechanic bookings view ---------------------------------
 async function loadBookings() {
-  const container = document.getElementById('bookings-list');
-  container.textContent = 'Loading...';
-
-  // Mechanics only see confirmed future appointments here.
+  const upcomingContainer = document.getElementById('bookings-list');
+  const pastContainer = document.getElementById('past-bookings-list');
   const isMechanic = loggedInAccount?.role === 'mechanic';
+  const pastSection = document.getElementById('past-bookings-section');
+  pastSection.hidden = isMechanic;
+  upcomingContainer.textContent = 'Loading...';
+  pastContainer.textContent = '';
+
   const bookingsUrl = isMechanic
     ? `${API_BASE}/mechanics/upcoming`
     : `${API_BASE}/bookings/customer/${getCurrentCustomerId()}`;
-  const res = await fetch(bookingsUrl, { headers: requestHeaders() });
-  const data = await res.json();
+  try {
+    const response = await fetch(bookingsUrl, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      upcomingContainer.textContent = data.error || 'Please log in to view bookings.';
+      return;
+    }
 
-  if (!res.ok) {
-    container.textContent = data.error || 'Please log in to view bookings.';
+    if (isMechanic) {
+      renderBookingCards(upcomingContainer, data.bookings, true, 'No upcoming bookings.', true);
+      return;
+    }
+
+    const now = Date.now();
+    const upcoming = [];
+    const past = [];
+    data.bookings.forEach((booking) => {
+      const startsAt = new Date(booking.slot_start.replace(' ', 'T')).getTime();
+      if (startsAt > now && ['pending', 'confirmed'].includes(booking.status)) upcoming.push(booking);
+      else past.push(booking);
+    });
+
+    upcoming.sort((left, right) => new Date(left.slot_start.replace(' ', 'T')) - new Date(right.slot_start.replace(' ', 'T')));
+    past.sort((left, right) => new Date(right.slot_start.replace(' ', 'T')) - new Date(left.slot_start.replace(' ', 'T')));
+    renderBookingCards(upcomingContainer, upcoming, false, 'No upcoming bookings.', true);
+    renderBookingCards(pastContainer, past, false, 'No past bookings.', false);
+  } catch {
+    upcomingContainer.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+function renderBookingCards(container, bookings, isMechanic, emptyMessage, allowCancellation) {
+  container.replaceChildren();
+  if (bookings.length === 0) {
+    container.textContent = emptyMessage;
     return;
   }
 
-  if (data.bookings.length === 0) {
-    container.textContent = isMechanic ? 'No upcoming bookings.' : 'You have no bookings yet.';
-    return;
-  }
-
-  container.innerHTML = '';
-  data.bookings.forEach((b) => {
+  bookings.forEach((b) => {
     const card = document.createElement('div');
     card.className = 'booking-card';
     const badgeClass = `badge-${b.status}`;
@@ -447,7 +513,7 @@ async function loadBookings() {
     }
 
     // Mechanics can cancel approved appointments; customers can cancel pending or approved requests.
-    if (b.status === 'confirmed' || (!isMechanic && b.status === 'pending')) {
+    if (allowCancellation && (b.status === 'confirmed' || (!isMechanic && b.status === 'pending'))) {
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'Cancel Booking';
       cancelBtn.className = 'cancel-btn';
