@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
+  <header id="app-header">
     <div>
       <h1>Toyota Service Portal</h1>
       <p class="subtitle">Customer Booking &amp; Workshop Quality</p>
@@ -18,7 +18,7 @@
     </div>
   </header>
 
-  <nav>
+  <nav id="app-nav">
     <button id="booking-nav-button" data-view="booking" class="nav-btn active">Book a Service</button>
     <button id="bookings-nav-button" data-view="bookings" class="nav-btn">My Bookings</button>
     <button id="completed-nav-button" data-view="completed" class="nav-btn" hidden>Completed Bookings</button>
@@ -28,6 +28,46 @@
   </nav>
 
   <main>
+    <!-- Public entry point shown to visitors until a session is validated. -->
+    <section id="public-landing" aria-labelledby="landing-title">
+      <div class="landing-topbar">
+        <a class="landing-brand" href="/" aria-label="Toyota Service Portal home">
+          <span class="landing-brand-mark" aria-hidden="true">T</span>
+          <span>Toyota Service Portal</span>
+        </a>
+        <div class="landing-actions">
+          <button id="landing-login-button" class="landing-login" type="button">Log in</button>
+          <button id="landing-signup-button" class="landing-signup" type="button">Sign up</button>
+        </div>
+      </div>
+
+      <div class="landing-hero">
+        <div class="landing-copy">
+          <p class="landing-eyebrow">Your workshop, connected</p>
+          <h1 id="landing-title">Good care keeps you moving.</h1>
+          <p class="landing-description">Straightforward vehicle servicing, WOF inspections, and workshop support from a team that knows your car.</p>
+          <div class="landing-hero-actions">
+            <button id="landing-primary-login" class="landing-primary" type="button">Log in to your account <span aria-hidden="true">&#8594;</span></button>
+            <span class="landing-note">For customers and workshop staff</span>
+          </div>
+        </div>
+        <figure class="landing-image-wrap">
+          <img
+            class="landing-image"
+            src="https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&amp;fit=crop&amp;w=1400&amp;q=85"
+            alt="Technician working on a vehicle in a service workshop"
+          />
+          <figcaption><span class="landing-image-dot"></span> Care for every kilometre</figcaption>
+        </figure>
+      </div>
+
+      <div class="landing-services" aria-label="Workshop services">
+        <span>Routine servicing</span>
+        <span>WOF inspections</span>
+        <span>Diagnostics and repairs</span>
+        <p id="signup-message" role="status" aria-live="polite"></p>
+      </div>
+    </section>
 
   <div id="login-modal" class="modal-backdrop" hidden>
     <section class="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-title">

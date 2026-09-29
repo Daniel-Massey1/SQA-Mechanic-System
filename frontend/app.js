@@ -54,6 +54,13 @@ function openLoginModal() {
   document.getElementById('login-username').focus();
 }
 
+document.getElementById('landing-login-button').addEventListener('click', openLoginModal);
+document.getElementById('landing-primary-login').addEventListener('click', openLoginModal);
+// Keep registration clearly marked as unavailable until account creation exists.
+document.getElementById('landing-signup-button').addEventListener('click', () => {
+  document.getElementById('signup-message').textContent = 'Online sign up is coming soon. Please contact the workshop to create an account.';
+});
+
 function closeLoginModal() {
   loginModal.hidden = true;
   loginForm.reset();
@@ -62,6 +69,8 @@ function closeLoginModal() {
 
 function updateAccountControls() {
   const isLoggedIn = Boolean(loggedInAccount);
+  // Guest styling exposes the landing page; a validated account restores the portal.
+  document.body.classList.toggle('is-guest', !isLoggedIn);
   const isCustomer = loggedInAccount?.role === 'customer';
   const isMechanic = loggedInAccount?.role === 'mechanic';
   const isManager = loggedInAccount?.role === 'manager';
