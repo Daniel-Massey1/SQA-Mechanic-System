@@ -1,13 +1,13 @@
 const express = require('express');
 const { getDb } = require('../db/db');
-const { requireAccount } = require('../auth');
+const { requireAccount, denyAccess } = require('../auth');
 
 const router = express.Router();
 
 // Return all vehicles for mechanic work and manager history review.
 router.get('/all', requireAccount, (req, res) => {
   if (!['mechanic', 'manager'].includes(req.account.role)) {
-    return res.status(403).json({ error: 'Only mechanic and manager accounts can view all vehicles.' });
+    return denyAccess(req, res, 'Only mechanic and manager accounts can view all vehicles.');
   }
 
   const vehicles = getDb().prepare('SELECT * FROM vehicles ORDER BY plate').all();
@@ -18,9 +18,13 @@ router.get('/all', requireAccount, (req, res) => {
  * GET /api/vehicles/customer/:customerId
  * Returns all vehicles belonging to a customer, for the "select vehicle" step of booking.
  */
-router.get('/customer/:customerId', (req, res) => {
+router.get('/customer/:customerId', requireAccount, (req, res) => {
   const db = getDb();
   const { customerId } = req.params;
+
+  if (req.account.role === 'customer' && String(req.account.customerId) !== String(customerId)) {
+    return denyAccess(req, res, 'You can only view vehicles belonging to your account.');
+  }
 
   const vehicles = db
     .prepare('SELECT * FROM vehicles WHERE customer_id = ?')
@@ -32,19 +36,20 @@ router.get('/customer/:customerId', (req, res) => {
 /**
  * GET /api/vehicles/:vehicleId/history
  *
- * Acceptance criteria covered:
- *  - "A logged-in customer can view their full vehicle history, ordered most
- *     recent first, including past issues, fixes, and flagged future concerns."
- *  - "A customer with no recorded vehicle history sees a stated empty state
- *     rather than an error."
+ * Customers can view history for their own vehicles; mechanics and managers
+ * can review any vehicle. Entries are ordered newest first, and an empty
+ * history is returned as a stated empty state rather than an error.
  */
-router.get('/:vehicleId/history', (req, res) => {
+router.get('/:vehicleId/history', requireAccount, (req, res) => {
   const db = getDb();
   const { vehicleId } = req.params;
 
   const vehicle = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(vehicleId);
   if (!vehicle) {
     return res.status(404).json({ error: 'Vehicle not found.' });
+  }
+  if (req.account.role === 'customer' && String(req.account.customerId) !== String(vehicle.customer_id)) {
+    return denyAccess(req, res, 'You can only view history for vehicles belonging to your account.');
   }
 
   // Every entry is returned (edits are never hidden or deleted); root_entry_id

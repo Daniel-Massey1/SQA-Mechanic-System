@@ -1,13 +1,13 @@
 const express = require('express');
 const { getDb } = require('../db/db');
-const { requireAccount } = require('../auth');
+const { requireAccount, denyAccess } = require('../auth');
 
 const router = express.Router();
 
 // Middleware to ensure the user is a manager
 function requireManager(req, res, next) {
   if (req.account.role !== 'manager') {
-    return res.status(403).json({ error: 'Only manager accounts can view the manager dashboard.' });
+    return denyAccess(req, res, 'Only manager accounts can view the manager dashboard.');
   }
   return next();
 }
