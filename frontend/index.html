@@ -147,8 +147,15 @@
             <option value="wof">WOF</option>
           </select>
 
-          <label for="slot-time">Available time slot</label>
-          <input type="datetime-local" id="slot-time" />
+          <label for="booking-date">Choose a date</label>
+          <input type="date" id="booking-date" required />
+
+          <div class="time-slot-heading">
+            <h3 id="time-slot-title">Available time slots</h3>
+            <span>9:00 AM – 5:00 PM</span>
+          </div>
+          <div id="available-time-slots" class="time-slot-grid" role="group" aria-labelledby="time-slot-title"></div>
+          <p id="availability-message" class="availability-message" role="status">Choose a date to view available times.</p>
 
           <label for="booking-notes">Additional notes</label>
           <textarea id="booking-notes" rows="4" placeholder="Tell us anything we should know about your vehicle or service needs."></textarea>
@@ -214,7 +221,7 @@
               <option value="">Loading bookings...</option>
             </select>
 
-            <label for="checklist-service-type">Service Type</label>
+            <label for="checklist-service-type">Service Type (set by booking)</label>
             <select id="checklist-service-type" name="serviceType">
               <option value="basic_service">Basic Service</option>
               <option value="full_service">Full Service</option>

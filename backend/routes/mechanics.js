@@ -95,8 +95,11 @@ router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
   }
 
   const db = getDb();
-  const booking = db.prepare("SELECT id FROM bookings WHERE id = ? AND status = 'confirmed'").get(bookingId);
+  const booking = db.prepare("SELECT id, service_type FROM bookings WHERE id = ? AND status = 'confirmed'").get(bookingId);
   if (!booking) return res.status(400).json({ error: 'Choose a confirmed booking.' });
+  if (booking.service_type !== serviceType) {
+    return res.status(400).json({ error: 'The checklist service type must match the selected booking.' });
+  }
 
   const checklist = db.prepare('SELECT * FROM checklists WHERE service_type = ?').get(serviceType);
   const items = checklist ? JSON.parse(checklist.items_json) : [];
