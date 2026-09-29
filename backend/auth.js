@@ -1,13 +1,9 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { getDb } = require('./db/db');
+const { verifyPassword } = require('./passwords');
 
-const ACCOUNT_CREDENTIALS = {
-  customer1: { password: '123', role: 'customer', customerId: 1 },
-  customer2: { password: '123', role: 'customer', customerId: 2 },
-  mechanic1: { password: '123', role: 'mechanic' },
-  manager1: { password: '123', role: 'manager' },
-};
 const TOKEN_TTL_SECONDS = 8 * 60 * 60;
 
 if (process.env.NODE_ENV === 'production' && !process.env.AUTH_SECRET) {
@@ -37,36 +33,46 @@ function loadAuthSecret() {
 
 const AUTH_SECRET = loadAuthSecret();
 
-function safeEqual(left, right) {
-  const leftBuffer = Buffer.from(String(left));
-  const rightBuffer = Buffer.from(String(right));
-  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+function findUserByUsername(username) {
+  if (typeof username !== 'string') return null;
+  return getDb().prepare(
+    'SELECT id, username, password_hash, role, customer_id FROM users WHERE username = ?'
+  ).get(username) || null;
 }
 
-function hasAccount(username) {
-  return Object.prototype.hasOwnProperty.call(ACCOUNT_CREDENTIALS, username);
+function findUserById(id) {
+  return getDb().prepare(
+    'SELECT id, username, role, customer_id FROM users WHERE id = ?'
+  ).get(id) || null;
+}
+
+function toPublicAccount(user) {
+  if (!user) return null;
+  return {
+    username: user.username,
+    role: user.role,
+    ...(user.customer_id ? { customerId: user.customer_id } : {}),
+  };
 }
 
 function getPublicAccount(username) {
-  const credentials = ACCOUNT_CREDENTIALS[username];
-  if (!hasAccount(username)) return null;
-  const { role, customerId } = credentials;
-  return { username, role, ...(customerId ? { customerId } : {}) };
+  return toPublicAccount(findUserByUsername(username));
 }
 
 function authenticateAccount(username, password) {
-  if (!hasAccount(username)) return null;
-  const credentials = ACCOUNT_CREDENTIALS[username];
-  if (!safeEqual(password, credentials.password)) return null;
+  const user = findUserByUsername(username);
+  if (!user || !verifyPassword(password, user.password_hash)) return null;
 
-  return getPublicAccount(username);
+  return toPublicAccount(user);
 }
 
 function createAuthToken(username, now = Date.now()) {
-  if (!hasAccount(username)) throw new Error('Cannot issue a token for an unknown account.');
+  const user = findUserByUsername(username);
+  if (!user) throw new Error('Cannot issue a token for an unknown account.');
 
+  // Store the immutable user ID, then reload the current role on every request.
   const payload = Buffer.from(JSON.stringify({
-    sub: username,
+    sub: user.id,
     exp: Math.floor(now / 1000) + TOKEN_TTL_SECONDS,
   })).toString('base64url');
   const signature = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
@@ -90,10 +96,11 @@ function verifyAuthToken(token, now = Date.now()) {
 
   try {
     const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    if (typeof claims.sub !== 'string' || !Number.isInteger(claims.exp) || claims.exp <= Math.floor(now / 1000)) {
+    if (!Number.isInteger(claims.sub) || !Number.isInteger(claims.exp) || claims.exp <= Math.floor(now / 1000)) {
       return null;
     }
-    return getPublicAccount(claims.sub);
+    // Deleted users no longer resolve, immediately invalidating their outstanding tokens.
+    return toPublicAccount(findUserById(claims.sub));
   } catch {
     return null;
   }

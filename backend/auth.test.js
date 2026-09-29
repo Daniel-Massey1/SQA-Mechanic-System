@@ -65,9 +65,11 @@ test('expired and tampered bearer tokens are rejected', () => {
   const expiredToken = createAuthToken('manager1', 0);
   const validToken = createAuthToken('manager1');
   const [payload, signature] = validToken.split('.');
+  const changedFirstCharacter = signature[0] === 'A' ? 'B' : 'A';
+  const tamperedSignature = `${changedFirstCharacter}${signature.slice(1)}`;
 
   assert.equal(verifyAuthToken(expiredToken, 28_800_000), null);
-  assert.equal(verifyAuthToken(`${payload}.${signature.slice(0, -1)}x`), null);
+  assert.equal(verifyAuthToken(`${payload}.${tamperedSignature}`), null);
 });
 
 test('requireAccount ignores X-Mock-Username and trusts the signed bearer token', () => {

@@ -69,6 +69,41 @@
       </div>
     </section>
 
+    <section id="public-signup" class="public-signup" aria-labelledby="signup-title">
+      <div class="landing-topbar">
+        <a class="landing-brand" href="/" aria-label="Toyota Service Portal home">
+          <span class="landing-brand-mark" aria-hidden="true">T</span>
+          <span>Toyota Service Portal</span>
+        </a>
+        <button id="signup-back-button" class="landing-login" type="button">Back</button>
+      </div>
+      <div class="signup-layout">
+        <div class="signup-copy">
+          <p class="landing-eyebrow">Customer account</p>
+          <h1 id="signup-title">Create your account.</h1>
+          <p class="landing-description">Set up your customer profile to get started.</p>
+        </div>
+        <form id="signup-form" class="signup-form">
+          <span class="signup-role">Account type <strong>Customer</strong></span>
+          <label for="signup-display-name">Full name</label>
+          <input id="signup-display-name" name="displayName" type="text" autocomplete="name" minlength="2" maxlength="80" required />
+
+          <label for="signup-email">Email</label>
+          <input id="signup-email" name="email" type="email" autocomplete="email" maxlength="254" required />
+
+          <label for="signup-username">Username</label>
+          <input id="signup-username" name="username" type="text" autocomplete="username" minlength="3" maxlength="30" pattern="[a-zA-Z0-9._]+(-[a-zA-Z0-9._]+)*" required />
+
+          <label for="signup-password">Password</label>
+          <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required />
+
+          <p id="signup-error" class="signup-error" role="alert"></p>
+          <button type="submit">Create customer account</button>
+          <button id="signup-login-button" class="signup-existing-login" type="button">Already have an account? Log in</button>
+        </form>
+      </div>
+    </section>
+
   <div id="login-modal" class="modal-backdrop" hidden>
     <section class="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
       <div class="modal-header">
@@ -257,6 +292,41 @@
             <span class="summary-value" id="stat-compliance">-</span>
           </div>
         </div>
+
+        <section class="account-management" aria-labelledby="account-management-title">
+          <div class="account-management-heading">
+            <div>
+              <h3 id="account-management-title">People &amp; access</h3>
+              <p>Deleting an account removes sign-in access. Service records are retained.</p>
+            </div>
+          </div>
+          <div class="account-management-grid">
+            <section class="account-list-panel" aria-labelledby="account-list-title">
+              <div class="account-panel-heading">
+                <h4 id="account-list-title">Customers and mechanics</h4>
+              </div>
+              <div id="manager-account-list" aria-live="polite">Loading accounts...</div>
+            </section>
+            <section class="account-form-panel" aria-labelledby="mechanic-form-title">
+              <div class="account-panel-heading">
+                <h4 id="mechanic-form-title">Add a mechanic</h4>
+              </div>
+              <form id="create-mechanic-form">
+                <label for="mechanic-display-name">Full name</label>
+                <input id="mechanic-display-name" name="displayName" type="text" autocomplete="name" minlength="2" maxlength="80" required />
+
+                <label for="mechanic-username">Username</label>
+                <input id="mechanic-username" name="username" type="text" autocomplete="off" minlength="3" maxlength="30" pattern="[a-zA-Z0-9._]+(-[a-zA-Z0-9._]+)*" required />
+
+                <label for="mechanic-password">Temporary password</label>
+                <input id="mechanic-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required />
+
+                <p id="create-mechanic-result" role="status"></p>
+                <button type="submit">Create mechanic account</button>
+              </form>
+            </section>
+          </div>
+        </section>
 
         <h3>Completed Jobs</h3>
         <div id="manager-jobs-list"></div>

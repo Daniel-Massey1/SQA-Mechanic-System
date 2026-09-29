@@ -16,13 +16,14 @@
  * is agreed up front - feel free to extend these columns as needed):
  *   - checklists           (mechanic side: configurable checklist templates)
  *   - jobs                 (mechanic side: a job = a booking being worked on)
- *   - users                (auth/role side: replace mocked roles with real login later)
+ *   - users                (persistent login accounts and assigned roles)
  */
 
 const Database = require('better-sqlite3');
 const path = require('path');
+const { hashPassword, verifyPassword } = require('../passwords');
 
-const DB_PATH = path.join(__dirname, 'portal.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'portal.db');
 
 let db;
 
@@ -38,6 +39,23 @@ function getDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('customer', 'mechanic', 'manager')),
+      display_name TEXT NOT NULL,
+      email TEXT UNIQUE,
+      customer_id INTEGER UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS vehicles (
@@ -129,13 +147,90 @@ function getDb() {
   }
   db.prepare("UPDATE bookings SET booked_by = 'customer1' WHERE booked_by = ''").run();
 
-  seedIfEmpty();
+  if (process.env.NODE_ENV === 'production') {
+    seedProductionManager();
+    rejectDefaultProductionCredentials();
+  } else {
+    seedIfEmpty();
+    seedDemoAccounts();
+  }
   // Add standard checklists the first time the database is used.
   seedChecklistsIfEmpty();
   // Upgrade only the original short sample checklists.
   updateSampleChecklists();
 
   return db;
+}
+
+function seedProductionManager() {
+  const managerCount = db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'manager'").get().n;
+  if (managerCount > 0) return;
+
+  // Bootstrap exactly one production manager from deployment secrets; never insert demo credentials.
+  const username = process.env.INITIAL_MANAGER_USERNAME?.trim().toLowerCase();
+  const password = process.env.INITIAL_MANAGER_PASSWORD;
+  const displayName = process.env.INITIAL_MANAGER_NAME?.trim() || 'Workshop Manager';
+  if (!/^[a-z0-9._-]{3,30}$/.test(username || '') || typeof password !== 'string'
+    || password.length < 16 || password.length > 128) {
+    throw new Error('Production requires INITIAL_MANAGER_USERNAME and an INITIAL_MANAGER_PASSWORD of 16 to 128 characters until a manager exists.');
+  }
+
+  db.prepare(
+    `INSERT INTO users (username, password_hash, role, display_name)
+     VALUES (?, ?, 'manager', ?)`
+  ).run(username, hashPassword(password), displayName);
+}
+
+function rejectDefaultProductionCredentials() {
+  const knownDefaults = [
+    ['customer1', '123'],
+    ['customer2', '123'],
+    ['mechanic1', '123'],
+    ['manager1', '123'],
+  ];
+  const findUser = db.prepare('SELECT password_hash FROM users WHERE username = ?');
+  for (const [username, password] of knownDefaults) {
+    const user = findUser.get(username);
+    if (user && verifyPassword(password, user.password_hash)) {
+      throw new Error(`Production account ${username} still uses a demo password. Remove or reset it before starting the service.`);
+    }
+  }
+}
+
+function seedDemoAccounts() {
+  // Persist completion so manager-deleted demo accounts are not recreated after restart.
+  const seeded = db.prepare("SELECT value FROM app_metadata WHERE key = 'demo_accounts_seeded'").get();
+  if (seeded) return;
+
+  const insertUser = db.prepare(
+    `INSERT OR IGNORE INTO users (username, password_hash, role, display_name, email, customer_id)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  const demoAccounts = [
+    { username: 'customer1', password: '123', role: 'customer', displayName: 'Jane Smith', email: 'jane@example.com' },
+    { username: 'customer2', password: '123', role: 'customer', displayName: 'Tom Reid', email: 'tom@example.com' },
+    { username: 'mechanic1', password: '123', role: 'mechanic', displayName: 'Demo Mechanic', email: null },
+    { username: 'manager1', password: '123', role: 'manager', displayName: 'Demo Manager', email: null },
+  ];
+
+  for (const account of demoAccounts) {
+    let customerId = null;
+    if (account.role === 'customer') {
+      db.prepare('INSERT OR IGNORE INTO customers (name, email) VALUES (?, ?)')
+        .run(account.displayName, account.email);
+      customerId = db.prepare('SELECT id FROM customers WHERE email = ?').get(account.email).id;
+    }
+    insertUser.run(
+      account.username,
+      hashPassword(account.password),
+      account.role,
+      account.displayName,
+      account.email,
+      customerId
+    );
+  }
+
+  db.prepare("INSERT INTO app_metadata (key, value) VALUES ('demo_accounts_seeded', '1')").run();
 }
 
 function seedIfEmpty() {

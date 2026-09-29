@@ -22,7 +22,17 @@ The prototype includes four fixed demo accounts:
 - `mechanic1` / `123`
 - `manager1` / `123`
 
-The backend verifies these credentials and issues signed, expiring bearer tokens. Accounts and passwords are hardcoded for demonstration, so this is not production-ready account management.
+The backend verifies these credentials against SQLite and issues signed, expiring bearer tokens. Demo accounts are seeded only outside production. New customer and mechanic accounts require passwords of 8 to 128 characters.
+
+For a fresh production database, configure `AUTH_SECRET`, `INITIAL_MANAGER_USERNAME`, and `INITIAL_MANAGER_PASSWORD` (at least 16 characters) for the initial manager. Remove or reset any demo accounts before deploying an existing development database.
+
+Login and sign-up requests are throttled per client IP. The current limiter is process-local, so a multi-worker production deployment should use a shared rate-limit store.
+
+Run backend security tests with:
+
+```powershell
+node --test backend/*.test.js
+```
 
 
 ### Recommended: DB Browser for SQLite
@@ -49,6 +59,8 @@ The application is split into a static frontend and a Node.js backend. The backe
 - Booking confirmation and booking list
 - Booking cancellation for eligible bookings
 - Vehicle service and diagnostic history
+- Customer self-registration
+- Manager controls for creating mechanics and removing customer/mechanic sign-in access
 - SQLite database for local development
 - Basic health-check endpoint for the backend
 
@@ -65,8 +77,10 @@ The application is split into a static frontend and a Node.js backend. The backe
 3. Use **Book a Service** to select a vehicle, service, and time slot.
 4. Use **My Bookings** to view or cancel bookings.
 5. Use **Vehicle History** to view the selected vehicle's previous records.
+6. Use **Sign up** on the public landing page to create a customer account.
+7. Managers can use **People & access** to add mechanics or remove a customer's or mechanic's sign-in account.
 
-The prototype uses sample customer data and fixed demo accounts with backend-verified login. It does not include production account management such as user registration or password recovery.
+Deleting an account removes its ability to sign in, but preserves customer profiles, vehicles, and service history for recordkeeping. The prototype does not include email verification or password recovery, so use non-sensitive demo credentials.
 
 ## Project structure
 
