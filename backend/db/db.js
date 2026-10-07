@@ -78,6 +78,7 @@ function getDb() {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       completed_at TEXT,
       customer_notification TEXT,
+      cancelled_at TEXT,                -- ISO timestamp; cancelled bookings are kept for auditing
       FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
     );
 
@@ -105,6 +106,26 @@ function getDb() {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_slot
       ON bookings (slot_start)
       WHERE status IN ('pending', 'confirmed');
+
+    -- Outbox for every (mocked) email the system sends. Messages are queued first
+    -- and delivered by services/notifications.js, so failed sends can be retried
+    -- and every notification leaves an auditable record.
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,               -- 'booking_decision' | 'booking_cancelled' | 'booking_completed'
+      recipient TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      dedupe_key TEXT UNIQUE,           -- optional: stops the same message being queued twice
+      booking_id INTEGER,
+      vehicle_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'queued', -- 'queued' | 'sent' | 'failed'
+      attempts INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,         -- ISO timestamps (UTC)
+      next_attempt_at TEXT NOT NULL,
+      sent_at TEXT,
+      last_error TEXT
+    );
 
     -- Stub tables for mechanic/manager sides. Left minimal on purpose.
     CREATE TABLE IF NOT EXISTS checklists (
@@ -140,6 +161,9 @@ function getDb() {
   }
   if (!bookingColumns.some((column) => column.name === 'decided_by')) {
     db.exec('ALTER TABLE bookings ADD COLUMN decided_by TEXT');
+  }
+  if (!bookingColumns.some((column) => column.name === 'cancelled_at')) {
+    db.exec('ALTER TABLE bookings ADD COLUMN cancelled_at TEXT');
   }
   const jobColumns = db.prepare('PRAGMA table_info(jobs)').all();
   if (!jobColumns.some((column) => column.name === 'status')) {

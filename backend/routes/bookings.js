@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db/db');
 const { requireAccount, denyAccess } = require('../auth');
+const { WORKSHOP_EMAIL, sendNow } = require('../services/notifications');
 
 const router = express.Router();
 
@@ -177,11 +178,12 @@ router.post('/', requireAccount, (req, res) => {
  *    24 hours before the booking time (inclusive), THEN it is rejected with
  *    an error message.
  *  - GIVEN a booking is scheduled, WHEN cancellation is requested 24 hours
- *    or more before the booking time, THEN the booking is removed and the
- *    mechanic is notified (notification is mocked here with a console.log
- *    and a `mechanicNotified` flag - swap in real email later).
- *  - A cancellation request for a booking that does not exist, or has
- *    already been cancelled, is rejected with a stated reason.
+ *    or more before the booking time, THEN the booking status becomes
+ *    'cancelled' (the record is kept for auditing and metrics), it drops out
+ *    of active customer/mechanic lists, and the workshop's booking address is
+ *    emailed via the notification outbox.
+ *  - A cancellation request for a booking that does not exist, or is not
+ *    pending/confirmed, is rejected with a stated reason.
  */
 router.post('/:id/cancel', requireAccount, (req, res) => {
   const db = getDb();
@@ -194,6 +196,9 @@ router.post('/:id/cancel', requireAccount, (req, res) => {
   }
   if (booking.status === 'cancelled') {
     return res.status(400).json({ error: 'This booking has already been cancelled.' });
+  }
+  if (!['pending', 'confirmed'].includes(booking.status)) {
+    return res.status(400).json({ error: `A ${booking.status} booking cannot be cancelled.` });
   }
 
   if (req.account.role === 'customer' && booking.booked_by !== req.account.username) {
@@ -210,12 +215,25 @@ router.post('/:id/cancel', requireAccount, (req, res) => {
     });
   }
 
-  db.prepare('DELETE FROM bookings WHERE id = ?').run(id);
+  // Keep the record: cancelling is a status change, never a delete.
+  db.prepare(
+    `UPDATE bookings
+     SET status = 'cancelled', cancelled_at = ?,
+         customer_notification = 'This booking was cancelled. The workshop has been notified.'
+     WHERE id = ?`
+  ).run(now.toISOString(), id);
 
-  // Mocked mechanic notification - replace with real email service later.
-  console.log(`[MOCK EMAIL] Notifying mechanic: booking #${id} (ref ${booking.confirmation_ref}) was cancelled.`);
+  const vehicle = db.prepare('SELECT plate FROM vehicles WHERE id = ?').get(booking.vehicle_id);
+  sendNow(db, {
+    type: 'booking_cancelled',
+    recipient: WORKSHOP_EMAIL,
+    subject: `Booking ${booking.confirmation_ref} cancelled`,
+    body: `Booking ${booking.confirmation_ref} for ${vehicle?.plate || 'unknown vehicle'} `
+      + `(${booking.service_type.replace('_', ' ')} at ${booking.slot_start}) was cancelled by ${req.account.username}.`,
+    bookingId: booking.id,
+  });
 
-  return res.json({ message: 'Booking cancelled.', mechanicNotified: true });
+  return res.json({ message: 'Booking cancelled.', workshopNotified: true });
 });
 
 module.exports = router;

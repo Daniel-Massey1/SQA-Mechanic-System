@@ -634,9 +634,10 @@ function renderBookingCards(container, bookings, isMechanic, emptyMessage, allow
       <span class="badge ${escapeHTML(badgeClass)}">${escapeHTML(b.status)}</span>
     `;
 
-    if (!isMechanic && b.status === 'completed' && b.customer_notification) {
+    // Approval, decline, cancellation and completion updates are shown on the customer's card.
+    if (!isMechanic && b.customer_notification) {
       const notice = document.createElement('p');
-      notice.className = 'completion-notice';
+      notice.className = `completion-notice notice-${b.status}`;
       notice.textContent = b.customer_notification;
       card.appendChild(notice);
     }
@@ -709,6 +710,9 @@ function showBookingDetails(booking) {
     ['Booked by', booking.booked_by || 'Unknown'],
     ['Additional notes', booking.notes || 'No additional notes provided.'],
   ];
+  if (booking.cancelled_at) {
+    details.splice(5, 0, ['Cancelled', new Date(booking.cancelled_at).toLocaleString()]);
+  }
 
   details.forEach(([label, value]) => {
     const row = document.createElement('p');
@@ -742,7 +746,7 @@ async function cancelBooking(bookingId) {
     return;
   }
 
-  alert('Booking cancelled. The mechanic has been notified.');
+  alert('Booking cancelled. The workshop has been notified by email.');
   loadBookings();
 }
 

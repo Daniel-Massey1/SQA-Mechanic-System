@@ -35,6 +35,14 @@ node --test backend/*.test.js
 ```
 
 
+## Email notifications (mocked)
+
+No real email is sent. Every notification is written to the `notifications` outbox table and "delivered" by logging `[MOCK EMAIL]` to the server console, so the table is the record of what was sent and when.
+
+- **Booking approved/declined** - the customer is emailed immediately and sees the outcome on their booking card.
+- **Booking cancelled** - the booking is marked `cancelled` (never deleted) and the workshop booking address (`WORKSHOP_EMAIL`) is emailed.
+- **Retries** - a failed send is retried every 8 hours, up to 3 retries (24 hours), then marked `failed`. Set `MOCK_EMAIL_FAILURE_RATE` (0 to 1) to demonstrate this.
+
 ### Recommended: DB Browser for SQLite
 
 1. Stop the backend if it is running, or open the database in read-only mode.
@@ -57,7 +65,8 @@ The application is split into a static frontend and a Node.js backend. The backe
 - Customer service booking workflow
 - Vehicle selection and service type selection
 - Booking confirmation and booking list
-- Booking cancellation for eligible bookings
+- Booking cancellation for eligible bookings (kept as a cancelled record for auditing)
+- Mocked email notifications for booking decisions and cancellations
 - Vehicle service and diagnostic history
 - Customer self-registration
 - Manager controls for creating mechanics and removing customer/mechanic sign-in access

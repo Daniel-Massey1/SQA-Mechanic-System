@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db/db');
 const { requireAccount, denyAccess } = require('../auth');
+const { sendNow } = require('../services/notifications');
 
 const router = express.Router();
 const VALID_SEVERITIES = ['low', 'medium', 'high'];
@@ -126,7 +127,20 @@ router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
   });
   const jobId = completeBooking();
 
-  console.log(`[MOCK EMAIL] Notifying customer: booking #${bookingId} has been completed.`);
+  const customer = db.prepare(
+    `SELECT customers.email, bookings.confirmation_ref
+     FROM bookings
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     JOIN customers ON customers.id = vehicles.customer_id
+     WHERE bookings.id = ?`
+  ).get(bookingId);
+  sendNow(db, {
+    type: 'booking_completed',
+    recipient: customer.email,
+    subject: `Booking ${customer.confirmation_ref} completed`,
+    body: 'Your vehicle service has been completed.',
+    bookingId: Number(bookingId),
+  });
   return res.status(201).json({ jobId, status: 'Checklist Compliant', bookingStatus: 'completed' });
 });
 
@@ -142,7 +156,13 @@ router.post('/bookings/:id/decision', requireAccount, (req, res) => {
   }
 
   const db = getDb();
-  const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(req.params.id);
+  const booking = db.prepare(
+    `SELECT bookings.*, vehicles.plate, customers.name AS customer_name, customers.email AS customer_email
+     FROM bookings
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     JOIN customers ON customers.id = vehicles.customer_id
+     WHERE bookings.id = ?`
+  ).get(req.params.id);
   if (!booking) return res.status(404).json({ error: 'Booking not found.' });
   if (booking.status !== 'pending') {
     return res.status(400).json({ error: 'Only pending bookings can be approved or denied.' });
@@ -150,9 +170,25 @@ router.post('/bookings/:id/decision', requireAccount, (req, res) => {
 
   // Approved bookings reserve the appointment slot.
   const status = decision === 'approve' ? 'confirmed' : 'denied';
+  const outcome = decision === 'approve' ? 'approved' : 'declined';
+  const service = booking.service_type.replace('_', ' ');
+  const notification = decision === 'approve'
+    ? `Your ${service} booking for ${booking.plate} has been approved. See you then!`
+    : `Your ${service} booking for ${booking.plate} was declined. Please choose another time.`;
   try {
-    db.prepare('UPDATE bookings SET status = ?, decided_by = ? WHERE id = ?').run(status, req.account.username, booking.id);
-    return res.json({ message: `Booking ${status}.`, status });
+    db.prepare('UPDATE bookings SET status = ?, decided_by = ?, customer_notification = ? WHERE id = ?')
+      .run(status, req.account.username, notification, booking.id);
+
+    // AC12: the customer is emailed as soon as the decision is saved.
+    sendNow(db, {
+      type: 'booking_decision',
+      recipient: booking.customer_email,
+      subject: `Booking ${booking.confirmation_ref} ${outcome}`,
+      body: `Hi ${booking.customer_name}, ${notification.charAt(0).toLowerCase()}${notification.slice(1)} `
+        + `(Appointment: ${booking.slot_start}, reference ${booking.confirmation_ref}.)`,
+      bookingId: booking.id,
+    });
+    return res.json({ message: `Booking ${status}.`, status, customerNotified: true });
   } catch (err) {
     if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.code === 'SQLITE_CONSTRAINT') {
       return res.status(409).json({ error: 'This time slot has already been approved for another booking.' });
