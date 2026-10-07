@@ -453,6 +453,12 @@ function renderCustomerVehicleList(container, vehicles, emptyMessage) {
       ? `WOF expiry ${new Date(`${vehicle.wof_expiry}T00:00:00`).toLocaleDateString()}`
       : 'WOF expiry not recorded';
     item.appendChild(registration);
+
+    const service = document.createElement('p');
+    service.textContent = vehicle.service_due
+      ? `Next service due ${new Date(`${vehicle.service_due}T00:00:00`).toLocaleDateString()}`
+      : 'Next service date not recorded';
+    item.appendChild(service);
     container.appendChild(item);
   });
 }
@@ -550,6 +556,7 @@ document.getElementById('add-vehicle-form').addEventListener('submit', async (ev
         make: formData.get('make'),
         model: formData.get('model'),
         wofExpiry: formData.get('wofExpiry'),
+        serviceDue: formData.get('serviceDue'),
       }),
     });
     const data = await response.json();

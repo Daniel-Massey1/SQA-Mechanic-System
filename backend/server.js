@@ -8,8 +8,7 @@ const bookingRoutes = require('./routes/bookings');
 const mechanicRoutes = require('./routes/mechanics');
 const managerRoutes = require('./routes/manager');
 const { getDb } = require('./db/db');
-const { startWofReminderSchedule } = require('./services/wofReminders');
-const { processOutbox } = require('./services/notifications');
+const { startReminderSchedule } = require('./services/reminders');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,17 +19,8 @@ app.use(express.json());
 // Initialise (and seed) the database on startup.
 const db = getDb();
 
-// Checks for vehicles due for WOF in 14 days and mock-emails their owners
-startWofReminderSchedule(db);
-
-// Delivers queued emails and retries failed ones once their retry time is due.
-setInterval(() => {
-  try {
-    processOutbox(db);
-  } catch (error) {
-    console.error('[EMAIL] Outbox processing failed:', error);
-  }
-}, 60 * 1000);
+// Queues WOF/service reminders at 8am daily and delivers (and retries) queued emails.
+startReminderSchedule(db);
 
 // --- Customer Booking & Basic Portal routes ---
 app.use('/api/auth', authRoutes);

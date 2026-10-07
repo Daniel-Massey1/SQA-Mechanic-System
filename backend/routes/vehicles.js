@@ -4,6 +4,13 @@ const { requireAccount, denyAccess } = require('../auth');
 
 const router = express.Router();
 
+// Accepts real calendar dates in YYYY-MM-DD form only (rejects e.g. 2026-02-30).
+function isValidDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 // Return all vehicles for mechanic work and manager history review.
 router.get('/all', requireAccount, (req, res) => {
   if (!['mechanic', 'manager'].includes(req.account.role)) {
@@ -42,22 +49,24 @@ router.post('/', requireAccount, (req, res) => {
   const make = typeof req.body?.make === 'string' ? req.body.make.trim() : '';
   const model = typeof req.body?.model === 'string' ? req.body.model.trim() : '';
   const wofExpiry = typeof req.body?.wofExpiry === 'string' ? req.body.wofExpiry.trim() : '';
+  const serviceDue = typeof req.body?.serviceDue === 'string' ? req.body.serviceDue.trim() : '';
 
   if (!/^[A-Z0-9 -]{2,12}$/.test(plate) || make.length < 1 || make.length > 60
     || model.length < 1 || model.length > 60) {
     return res.status(400).json({ error: 'Enter a valid registration plate, make, and model.' });
   }
-  if (wofExpiry && (!/^\d{4}-\d{2}-\d{2}$/.test(wofExpiry)
-    || Number.isNaN(Date.parse(`${wofExpiry}T00:00:00Z`))
-    || new Date(`${wofExpiry}T00:00:00Z`).toISOString().slice(0, 10) !== wofExpiry)) {
+  if (wofExpiry && !isValidDate(wofExpiry)) {
     return res.status(400).json({ error: 'WOF expiry must be a valid date.' });
+  }
+  if (serviceDue && !isValidDate(serviceDue)) {
+    return res.status(400).json({ error: 'Service due date must be a valid date.' });
   }
 
   try {
     const result = getDb().prepare(
-      `INSERT INTO vehicles (customer_id, plate, make, model, wof_expiry)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(req.account.customerId, plate, make, model, wofExpiry || null);
+      `INSERT INTO vehicles (customer_id, plate, make, model, wof_expiry, service_due)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(req.account.customerId, plate, make, model, wofExpiry || null, serviceDue || null);
     const vehicle = getDb().prepare('SELECT * FROM vehicles WHERE id = ?').get(result.lastInsertRowid);
     return res.status(201).json({ vehicle });
   } catch (error) {
