@@ -236,6 +236,8 @@ button:hover { background: #a30613; }
 .checklist-item { display: flex; align-items: center; gap: 0.5rem; font-weight: 400; }
 .checklist-item input { width: auto; margin: 0; }
 .completion-notice { margin: 0.75rem 0 0; color: #065f46; font-weight: 600; }
+.completion-notice.notice-denied { color: #9d0715; }
+.completion-notice.notice-cancelled { color: var(--muted); }
 
 .mechanic-workspace {
   padding: 0;
