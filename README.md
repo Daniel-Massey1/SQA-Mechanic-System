@@ -41,6 +41,7 @@ No real email is sent. Every notification is written to the `notifications` outb
 
 - **Booking approved/declined** - the customer is emailed immediately and sees the outcome on their booking card.
 - **Booking cancelled** - the booking is marked `cancelled` (never deleted) and the workshop booking address (`WORKSHOP_EMAIL`) is emailed.
+- **WOF and service reminders** - at 8:00am workshop time (`WORKSHOP_TIMEZONE`, default `Pacific/Auckland`) each day, vehicles whose WOF expiry or service due date is exactly 14 days away are queued a reminder. Each reminder is only ever queued once per vehicle and due date, so restarting the server does not send duplicates.
 - **Retries** - a failed send is retried every 8 hours, up to 3 retries (24 hours), then marked `failed`. Set `MOCK_EMAIL_FAILURE_RATE` (0 to 1) to demonstrate this.
 
 ### Recommended: DB Browser for SQLite
@@ -67,6 +68,7 @@ The application is split into a static frontend and a Node.js backend. The backe
 - Booking confirmation and booking list
 - Booking cancellation for eligible bookings (kept as a cancelled record for auditing)
 - Mocked email notifications for booking decisions and cancellations
+- WOF and service due reminders 14 days ahead, with retries
 - Vehicle service and diagnostic history
 - Customer self-registration
 - Manager controls for creating mechanics and removing customer/mechanic sign-in access

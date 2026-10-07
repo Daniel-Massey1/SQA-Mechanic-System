@@ -65,6 +65,7 @@ function getDb() {
       make TEXT NOT NULL,
       model TEXT NOT NULL,
       wof_expiry TEXT,              -- ISO date string, e.g. '2026-09-10'
+      service_due TEXT,             -- ISO date string for the next scheduled service
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
 
@@ -112,11 +113,11 @@ function getDb() {
     -- and every notification leaves an auditable record.
     CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL,               -- 'booking_decision' | 'booking_cancelled' | 'booking_completed'
+      type TEXT NOT NULL,               -- 'wof_reminder' | 'service_reminder' | 'booking_decision' | 'booking_cancelled' | 'booking_completed'
       recipient TEXT NOT NULL,
       subject TEXT NOT NULL,
       body TEXT NOT NULL,
-      dedupe_key TEXT UNIQUE,           -- optional: stops the same message being queued twice
+      dedupe_key TEXT UNIQUE,           -- stops the same reminder being queued twice
       booking_id INTEGER,
       vehicle_id INTEGER,
       status TEXT NOT NULL DEFAULT 'queued', -- 'queued' | 'sent' | 'failed'
@@ -164,6 +165,10 @@ function getDb() {
   }
   if (!bookingColumns.some((column) => column.name === 'cancelled_at')) {
     db.exec('ALTER TABLE bookings ADD COLUMN cancelled_at TEXT');
+  }
+  const vehicleColumns = db.prepare('PRAGMA table_info(vehicles)').all();
+  if (!vehicleColumns.some((column) => column.name === 'service_due')) {
+    db.exec('ALTER TABLE vehicles ADD COLUMN service_due TEXT');
   }
   const jobColumns = db.prepare('PRAGMA table_info(jobs)').all();
   if (!jobColumns.some((column) => column.name === 'status')) {
@@ -266,10 +271,10 @@ function seedIfEmpty() {
   const c2 = insertCustomer.run('Tom Reid', 'tom@example.com').lastInsertRowid;
 
   const insertVehicle = db.prepare(
-    'INSERT INTO vehicles (customer_id, plate, make, model, wof_expiry) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO vehicles (customer_id, plate, make, model, wof_expiry, service_due) VALUES (?, ?, ?, ?, ?, ?)'
   );
-  const v1 = insertVehicle.run(c1, 'ABC123', 'Toyota', 'Corolla', '2026-09-10').lastInsertRowid;
-  const v2 = insertVehicle.run(c2, 'XYZ789', 'Toyota', 'Yaris', '2026-12-01').lastInsertRowid;
+  const v1 = insertVehicle.run(c1, 'ABC123', 'Toyota', 'Corolla', '2026-09-10', '2027-03-01').lastInsertRowid;
+  const v2 = insertVehicle.run(c2, 'XYZ789', 'Toyota', 'Yaris', '2026-12-01', null).lastInsertRowid;
 
   const insertDiag = db.prepare(
     `INSERT INTO diagnostic_entries (vehicle_id, fault_description, severity, status, created_at)
