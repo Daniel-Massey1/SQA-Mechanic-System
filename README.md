@@ -66,7 +66,8 @@ The application is split into a static frontend and a Node.js backend. The backe
 - Customer service booking workflow
 - Vehicle selection and service type selection
 - Booking confirmation and booking list
-- Booking cancellation for eligible bookings (kept as a cancelled record for auditing)
+- Booking cancellation for eligible bookings
+- Booking rescheduling to another available slot (blocked within 24 hours of the current appointment; the booking returns to pending for mechanic approval) (kept as a cancelled record for auditing)
 - Mocked email notifications for booking decisions and cancellations
 - WOF and service due reminders 14 days ahead, with retries
 - Vehicle service and diagnostic history
