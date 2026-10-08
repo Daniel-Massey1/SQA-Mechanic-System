@@ -83,13 +83,13 @@ The application is split into a static frontend and a Node.js backend. The backe
 
 **Mechanic**
 - Approve or deny pending booking requests (the customer is notified)
-- Service checklists loaded for the booking's service type; jobs are saved as checklist compliant
+- Service checklists loaded for the booking's service type. Fully ticked jobs are saved as checklist compliant; a job can also be closed with items unticked (after confirming), saved as "Checklist Incomplete" with its completion %
 - Diagnostic entries, append-only: edits are stored as new entries linked to the original
 - Vehicle history for every vehicle
 
 **Manager**
-- Quality dashboard: completed jobs, incomplete checklists, average repair time, acceptance rate and checklist compliance, filterable by mechanic
-- Completed job details: mechanic, repair details, duration and checklist version used
+- Quality dashboard: completed jobs, incomplete checklists, average repair time (hours), acceptance rate, checklist compliance and average checklist completion. Filter by mechanic and by date range (from/to, default last 30 days)
+- Completed job details: mechanic, repair details, duration, checklist version used, and which items were ticked
 - Service checklist editor: edits are saved as new versions, new jobs use the latest version, and completed jobs keep the version they were done with
 - People & access: create mechanic accounts and remove customer or mechanic sign-in access
 
@@ -121,7 +121,7 @@ The application is split into a static frontend and a Node.js backend. The backe
 - **Vehicle History**: view and edit diagnostic entries for any vehicle.
 
 **As a manager**
-- **Manager Dashboard**: view quality metrics, filter by mechanic, and select a completed job for its details.
+- **Manager Dashboard**: view quality metrics, filter by mechanic and date range, and select a completed job to see its details and which checklist items were ticked.
 - **People & access**: add mechanics or remove a customer's or mechanic's sign-in account.
 - **Service checklists**: edit the checklist for each service type and view previous versions.
 
@@ -133,7 +133,7 @@ Deleting an account removes its ability to sign in, but preserves customer profi
 backend/
 	db/db.js          Database schema, migrations and seed data
 	routes/           API routes: auth, bookings, vehicles, mechanics, manager
-	services/         Notifications outbox, WOF/service reminders, checklist versions
+	services/         Notifications outbox, WOF/service reminders, checklist versions, workshop timezone helper
 	auth.js           Token signing, role checks and denied-access logging
 	passwords.js      Password hashing
 	rateLimit.js      Login and sign-up throttling
