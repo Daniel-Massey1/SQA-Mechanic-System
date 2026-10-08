@@ -17,6 +17,10 @@ function parseSlotStart(slotStart) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function isWithinCancellationWindow(slotTime, now = new Date()) {
+  return slotTime.getTime() - now.getTime() <= CANCELLATION_WINDOW_HOURS * 60 * 60 * 1000;
+}
+
 function generateConfirmationRef() {
   return `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
@@ -174,11 +178,10 @@ router.post('/', requireAccount, (req, res) => {
  * POST /api/bookings/:id/cancel
  *
  * Acceptance criteria covered:
- *  - GIVEN a booking is scheduled, WHEN cancellation is requested less than
- *    24 hours before the booking time (inclusive), THEN it is rejected with
- *    an error message.
- *  - GIVEN a booking is scheduled, WHEN cancellation is requested 24 hours
- *    or more before the booking time, THEN the booking status becomes
+ *  - GIVEN a booking is scheduled, WHEN cancellation is requested within or
+ *    exactly 24 hours before the booking time, THEN it is rejected with an error.
+ *  - GIVEN a booking is scheduled, WHEN cancellation is requested more than
+ *    24 hours before the booking time, THEN the booking status becomes
  *    'cancelled' (the record is kept for auditing and metrics), it drops out
  *    of active customer/mechanic lists, and the workshop's booking address is
  *    emailed via the notification outbox.
@@ -205,11 +208,14 @@ router.post('/:id/cancel', requireAccount, (req, res) => {
     return denyAccess(req, res, 'You can only cancel your own bookings.');
   }
 
-  const slotTime = new Date(booking.slot_start.replace(' ', 'T'));
+  const slotTime = parseSlotStart(booking.slot_start);
+  if (!slotTime) {
+    console.error(`Booking #${id} has an invalid slot_start and cannot be cancelled safely.`);
+    return res.status(500).json({ error: 'Unable to verify the booking time. Please try again later.' });
+  }
   const now = new Date();
-  const hoursUntilBooking = (slotTime - now) / (1000 * 60 * 60);
 
-  if (hoursUntilBooking < CANCELLATION_WINDOW_HOURS) {
+  if (isWithinCancellationWindow(slotTime, now)) {
     return res.status(400).json({
       error: `Bookings cannot be cancelled within ${CANCELLATION_WINDOW_HOURS} hours of the booking time.`,
     });
@@ -237,3 +243,4 @@ router.post('/:id/cancel', requireAccount, (req, res) => {
 });
 
 module.exports = router;
+module.exports.isWithinCancellationWindow = isWithinCancellationWindow;
