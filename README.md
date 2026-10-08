@@ -72,6 +72,7 @@ The application is split into a static frontend and a Node.js backend. The backe
 - Vehicle service and diagnostic history
 - Customer self-registration
 - Manager controls for creating mechanics and removing customer/mechanic sign-in access
+- Manager checklist template editor: edits are saved as new versions, new jobs use the latest version, and completed jobs keep the version they were done with
 - SQLite database for local development
 - Basic health-check endpoint for the backend
 
@@ -90,6 +91,7 @@ The application is split into a static frontend and a Node.js backend. The backe
 5. Use **Vehicle History** to view the selected vehicle's previous records.
 6. Use **Sign up** on the public landing page to create a customer account.
 7. Managers can use **People & access** to add mechanics or remove a customer's or mechanic's sign-in account.
+8. Managers can use **Service checklists** to edit the checklist for each service type and view previous versions.
 
 Deleting an account removes its ability to sign in, but preserves customer profiles, vehicles, and service history for recordkeeping. The prototype does not include email verification or password recovery, so use non-sensitive demo credentials.
 

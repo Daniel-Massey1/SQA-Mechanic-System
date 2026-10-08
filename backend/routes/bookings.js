@@ -5,7 +5,7 @@ const { WORKSHOP_EMAIL, sendNow } = require('../services/notifications');
 
 const router = express.Router();
 
-const VALID_SERVICE_TYPES = ['basic_service', 'full_service', 'wof'];
+const { SERVICE_TYPES: VALID_SERVICE_TYPES } = require('../services/checklists');
 const CANCELLATION_WINDOW_HOURS = 24;
 
 function parseSlotStart(slotStart) {

@@ -2,11 +2,16 @@ const express = require('express');
 const { getDb } = require('../db/db');
 const { requireAccount, denyAccess } = require('../auth');
 const { sendNow } = require('../services/notifications');
+const {
+  SERVICE_TYPES,
+  getChecklistById,
+  getLatestChecklist,
+  listLatestChecklists,
+} = require('../services/checklists');
 
 const router = express.Router();
 const VALID_SEVERITIES = ['low', 'medium', 'high'];
 const VALID_DIAGNOSTIC_STATUSES = ['fixed', 'flagged_for_next_visit'];
-const VALID_CHECKLIST_SERVICE_TYPES = ['basic_service', 'full_service', 'wof'];
 
 // Return approval requests and checklist templates for mechanics.
 router.get('/dashboard', requireAccount, (req, res) => {
@@ -23,10 +28,7 @@ router.get('/dashboard', requireAccount, (req, res) => {
      WHERE bookings.status = 'pending'
      ORDER BY datetime(bookings.slot_start) ASC`
   ).all();
-  const checklists = db.prepare('SELECT * FROM checklists ORDER BY service_type').all().map((checklist) => ({
-    ...checklist,
-    items: JSON.parse(checklist.items_json),
-  }));
+  const checklists = listLatestChecklists(db);
 
   return res.json({ pendingBookings, checklists });
 });
@@ -67,21 +69,19 @@ router.get('/completed', requireAccount, (req, res) => {
   return res.json({ bookings });
 });
 
-// Return items for the service checklist selected by a mechanic.
+// Return the latest version of the checklist for the selected service type.
 router.get('/checklists/:serviceType', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
     return denyAccess(req, res, 'Only mechanic accounts can view service checklists.');
   }
-  if (!VALID_CHECKLIST_SERVICE_TYPES.includes(req.params.serviceType)) {
+  if (!SERVICE_TYPES.includes(req.params.serviceType)) {
     return res.status(400).json({ error: 'Choose a valid service type.' });
   }
 
-  const checklist = getDb().prepare(
-    'SELECT * FROM checklists WHERE service_type = ?'
-  ).get(req.params.serviceType);
+  const checklist = getLatestChecklist(getDb(), req.params.serviceType);
   if (!checklist) return res.status(404).json({ error: 'Checklist not found.' });
 
-  return res.json({ checklist: { ...checklist, items: JSON.parse(checklist.items_json) } });
+  return res.json({ checklist });
 });
 
 // Save a compliant job after every checklist item is completed.
@@ -90,8 +90,8 @@ router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
     return denyAccess(req, res, 'Only mechanic accounts can save checklist jobs.');
   }
 
-  const { bookingId, serviceType, completedItems } = req.body;
-  if (!Number.isInteger(Number(bookingId)) || !VALID_CHECKLIST_SERVICE_TYPES.includes(serviceType)) {
+  const { bookingId, serviceType, completedItems, checklistId } = req.body;
+  if (!Number.isInteger(Number(bookingId)) || !SERVICE_TYPES.includes(serviceType)) {
     return res.status(400).json({ error: 'Booking and service type are required.' });
   }
 
@@ -102,8 +102,13 @@ router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
     return res.status(400).json({ error: 'The checklist service type must match the selected booking.' });
   }
 
-  const checklist = db.prepare('SELECT * FROM checklists WHERE service_type = ?').get(serviceType);
-  const items = checklist ? JSON.parse(checklist.items_json) : [];
+  // Check against the version the mechanic loaded, so a manager editing the template
+  // mid-job does not invalidate work in progress. Without an id, use the latest version.
+  const checklist = checklistId ? getChecklistById(db, checklistId) : getLatestChecklist(db, serviceType);
+  if (checklist && checklist.service_type !== serviceType) {
+    return res.status(400).json({ error: 'The checklist does not match the booking service type.' });
+  }
+  const items = checklist ? checklist.items : [];
   const everyItemCompleted = Array.isArray(completedItems)
     && completedItems.length === items.length
     && items.every((item) => completedItems.includes(item));
