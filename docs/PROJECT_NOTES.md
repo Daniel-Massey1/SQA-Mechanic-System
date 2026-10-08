@@ -146,13 +146,14 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | # | Item | Reqs | Size | Notes |
 |---|---|---|---|---|
 | R01 | Date-range filter on the manager dashboard (from/to, default last 30 days) for all metrics and the jobs list | FR11, FR13–FR16 | Medium | Use C06's definition; FR14 filters by booking decision date. |
-| R02 | Fix average repair time: hours, same timezone for both timestamps | FR13, AC19 | Small | Fixes D10. Store `completed_at` the same way as `slot_start`, or convert both before subtracting. |
+| R02 | Fix average repair time: hours, same timezone for both timestamps, and no completing before the booked slot | FR13, AC19 | Small | Fixes D10 and D16. Store `completed_at` the same way as `slot_start`, or convert both before subtracting. |
 | R03 | Mechanics can close a job with unticked items: status "Checklist Incomplete", completion % and ticked items stored | FR10, FR15, FR16, AC18 | Medium | Store the ticked items per job so job details show what was actually ticked, not the full template. |
 | R04 | Add a vehicle inside booking step 1 so a first-time customer still books in 3 steps | NFR04 | Small | Frontend only; reuse the add-vehicle form and `POST /api/vehicles`. |
 | R05 | Plate search box for mechanic/manager vehicle history | AC10 | Small | Frontend only; filter the already-loaded vehicle list. |
 | R06 | Consistent error handling (frontend `fetch` without try/catch, some routes with no DB error handling) | A1 limitations | Small–Medium | E.g. `loadHistory`, `loadHistoryVehicleOptions`, `decideBooking`. |
 | R07 | Optional: SQLite trigger blocking UPDATE/DELETE on `diagnostic_entries`; record which mechanic made each entry | NFR06, AC16 | Small | Moves the integrity rule from the app into the database. |
 | R08 | Optional: index on `diagnostic_entries(vehicle_id)` before performance testing | NFR03 | Tiny | |
+| R09 | Login rate limit should count only failed attempts | NFR01 | Tiny | Fixes D17; do this before the demo. |
 
 ### Non-feature work still to do (later tasks)
 
@@ -188,8 +189,35 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | D13 | Some frontend screens break or hang when a request fails | Medium | `fetch` calls with no try/catch or `res.ok` check (AI-generated code assumed success) | **Open.** R06. | |
 | D14 | Auth tests run against the real `portal.db` | Low | Tests don't set `DB_PATH` | **Open.** Point at a temporary DB as `reminders.test.js` does. | |
 | D15 | Mechanic filter on "incomplete" uses the **approver**, not the mechanic doing the work | Low | Jobs are not assigned to mechanics; `decided_by` used as a stand-in | **Open / document.** | |
+| D16 | A mechanic can complete a job **before its booked slot**, giving a **negative** repair duration (seen: −7,970 min for a job completed 5 days early) | High | No check that the slot has started before a checklist is saved. FR13 measures from the booked slot, so finishing early always gives a negative time. Combined with D10, which added about 13h of the error | **Open.** Block completing before the slot starts, or count early finishes as zero. Fix with R02. | |
+| D17 | Login rate limit counts **successful** logins as well as failed ones, so switching roles about 10 times in 15 min locks you out (429) | Medium (demo risk) | `loginLimiter` (10 requests per 15 min per IP) counts every request to `/api/auth/login` | **Open.** Count only failed attempts, or raise the limit for local use. Restarting the server clears it. | |
 
 **Good candidates for the 3 root cause analyses:** D03 (timezone), D01 (literal requirement, then data loss), D08 (template edits rewriting history). D10 is another timezone defect with the same root cause as D03, which makes a strong "lesson learned and prevention" point: store and compare all timestamps the same way.
+
+---
+
+## 5a. Full feature walkthrough (2026-10-08)
+
+The whole system was exercised over HTTP against a fresh throwaway database with a temporary script (not committed).
+
+- **Result: 97 of 98 checks passed.** Areas covered:
+  - platform, auth and sign-up;
+  - customer vehicles, booking (including two customers racing for one slot) and cancellation;
+  - mechanic approvals, checklists and jobs, diagnostics and history;
+  - manager dashboard, job details, accounts and the checklist editor;
+  - role blocking on every protected route;
+  - rate limiting.
+- **Also verified:**
+  - 20 denied attempts logged with username, role, path and reason (NFR01);
+  - every booking email recorded as `sent` in the outbox;
+  - reminders: none at 07:59, WOF and service reminders at 08:00, no duplicates at 09:00;
+  - failing email retried at 0, 8, 16 and 24h, then `failed`;
+  - all 96 frontend element IDs exist in `index.html`;
+  - no errors in the server log.
+- **Failed:** average repair time was **negative** (−7,970 min). Cause: D16 (job completed before its slot) plus D10 (UTC vs local time).
+- **Observed:** checklist compliance showed **33%** (1 completed ÷ (1 completed + 2 confirmed, unfinished)). This confirms D11.
+- **Observed:** after 6 successful logins, a 429 came back on the 5th wrong password. This confirms D17.
+- **Not covered:** clicking through the UI in a browser (layout, buttons). Do a manual click-through as each role before the demo.
 
 ---
 
