@@ -145,7 +145,9 @@ function getDb() {
       mechanic_name TEXT,
       checklist_id INTEGER,
       checklist_compliant INTEGER DEFAULT 0, -- 0 = false, 1 = true
-      status TEXT NOT NULL DEFAULT 'In Progress',
+      status TEXT NOT NULL DEFAULT 'In Progress', -- 'Checklist Compliant' | 'Checklist Incomplete'
+      completed_items_json TEXT,        -- JSON array of the items the mechanic ticked
+      completion_percent INTEGER NOT NULL DEFAULT 100,
       FOREIGN KEY (booking_id) REFERENCES bookings(id),
       FOREIGN KEY (checklist_id) REFERENCES checklists(id)
     );
@@ -170,6 +172,16 @@ function getDb() {
   if (!bookingColumns.some((column) => column.name === 'cancelled_at')) {
     db.exec('ALTER TABLE bookings ADD COLUMN cancelled_at TEXT');
   }
+  if (!bookingColumns.some((column) => column.name === 'decided_at')) {
+    db.exec('ALTER TABLE bookings ADD COLUMN decided_at TEXT'); // ISO timestamp of approve/deny
+  }
+  // Event timestamps are UTC ISO strings. Older rows used SQLite's datetime('now')
+  // ('YYYY-MM-DD HH:MM:SS', also UTC), which was being misread as local time (D10).
+  db.exec(`UPDATE bookings SET completed_at = replace(completed_at, ' ', 'T') || '.000Z'
+           WHERE completed_at IS NOT NULL AND completed_at NOT LIKE '%Z'`);
+  // Decisions made before decided_at existed are dated from when the booking was made.
+  db.exec(`UPDATE bookings SET decided_at = replace(created_at, ' ', 'T') || '.000Z'
+           WHERE decided_at IS NULL AND status IN ('confirmed', 'completed', 'denied')`);
   const vehicleColumns = db.prepare('PRAGMA table_info(vehicles)').all();
   if (!vehicleColumns.some((column) => column.name === 'service_due')) {
     db.exec('ALTER TABLE vehicles ADD COLUMN service_due TEXT');
@@ -189,6 +201,13 @@ function getDb() {
   const jobColumns = db.prepare('PRAGMA table_info(jobs)').all();
   if (!jobColumns.some((column) => column.name === 'status')) {
     db.exec("ALTER TABLE jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'In Progress'");
+  }
+  if (!jobColumns.some((column) => column.name === 'completed_items_json')) {
+    db.exec('ALTER TABLE jobs ADD COLUMN completed_items_json TEXT');
+  }
+  if (!jobColumns.some((column) => column.name === 'completion_percent')) {
+    // Jobs saved before partial checklists existed always had every item ticked.
+    db.exec('ALTER TABLE jobs ADD COLUMN completion_percent INTEGER NOT NULL DEFAULT 100');
   }
   db.prepare("UPDATE bookings SET booked_by = 'customer1' WHERE booked_by = ''").run();
 

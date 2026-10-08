@@ -63,7 +63,7 @@ router.get('/completed', requireAccount, (req, res) => {
      JOIN vehicles ON vehicles.id = bookings.vehicle_id
      JOIN customers ON customers.id = vehicles.customer_id
      WHERE bookings.status = 'completed'
-     ORDER BY datetime(bookings.completed_at) DESC`
+     ORDER BY bookings.completed_at DESC`
   ).all();
 
   return res.json({ bookings });
@@ -84,7 +84,15 @@ router.get('/checklists/:serviceType', requireAccount, (req, res) => {
   return res.json({ checklist });
 });
 
-// Save a compliant job after every checklist item is completed.
+/**
+ * POST /api/mechanics/jobs/checklist-compliance
+ * Body: { bookingId, serviceType, checklistId, completedItems: string[] }
+ *
+ * Closes the job and records exactly which checklist items were ticked.
+ *  - FR10: every item ticked -> 'Checklist Compliant'.
+ *  - AC18: otherwise 'Checklist Incomplete', with the completion percentage stored
+ *    against the job (and its mechanic) for the manager dashboard (FR15/FR16).
+ */
 router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
     return denyAccess(req, res, 'Only mechanic accounts can save checklist jobs.');
@@ -108,26 +116,36 @@ router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
   if (checklist && checklist.service_type !== serviceType) {
     return res.status(400).json({ error: 'The checklist does not match the booking service type.' });
   }
-  const items = checklist ? checklist.items : [];
-  const everyItemCompleted = Array.isArray(completedItems)
-    && completedItems.length === items.length
-    && items.every((item) => completedItems.includes(item));
-  if (!checklist || !everyItemCompleted) {
-    return res.status(400).json({ error: 'Complete every checklist item before saving.' });
+  if (!checklist || checklist.items.length === 0) {
+    return res.status(400).json({ error: 'No checklist found for this service type.' });
   }
+  if (!Array.isArray(completedItems)) {
+    return res.status(400).json({ error: 'Completed checklist items are required.' });
+  }
+  // Only items from this checklist count, each once, kept in checklist order.
+  const unknownItem = completedItems.find((item) => !checklist.items.includes(item));
+  if (unknownItem !== undefined) {
+    return res.status(400).json({ error: 'One or more ticked items are not on this checklist. Reload the checklist and try again.' });
+  }
+  const ticked = checklist.items.filter((item) => completedItems.includes(item));
+  const completionPercent = Math.round((ticked.length / checklist.items.length) * 100);
+  const compliant = ticked.length === checklist.items.length;
+  const jobStatus = compliant ? 'Checklist Compliant' : 'Checklist Incomplete';
 
   // Save the job and booking completion together.
   const completeBooking = db.transaction(() => {
     const job = db.prepare(
-      `INSERT INTO jobs (booking_id, mechanic_name, checklist_id, checklist_compliant, status)
-       VALUES (?, ?, ?, 1, 'Checklist Compliant')`
-    ).run(bookingId, req.account.username, checklist.id);
+      `INSERT INTO jobs (booking_id, mechanic_name, checklist_id, checklist_compliant, status,
+                         completed_items_json, completion_percent)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(bookingId, req.account.username, checklist.id, compliant ? 1 : 0, jobStatus,
+      JSON.stringify(ticked), completionPercent);
     db.prepare(
       `UPDATE bookings
-       SET status = 'completed', completed_at = datetime('now'),
+       SET status = 'completed', completed_at = ?,
            customer_notification = 'Your vehicle service has been completed.'
        WHERE id = ?`
-    ).run(bookingId);
+    ).run(new Date().toISOString(), bookingId);
     return job.lastInsertRowid;
   });
   const jobId = completeBooking();
@@ -146,7 +164,7 @@ router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
     body: 'Your vehicle service has been completed.',
     bookingId: Number(bookingId),
   });
-  return res.status(201).json({ jobId, status: 'Checklist Compliant', bookingStatus: 'completed' });
+  return res.status(201).json({ jobId, status: jobStatus, completionPercent, bookingStatus: 'completed' });
 });
 
 // Let mechanics approve or deny a pending request.
@@ -181,8 +199,8 @@ router.post('/bookings/:id/decision', requireAccount, (req, res) => {
     ? `Your ${service} booking for ${booking.plate} has been approved. See you then!`
     : `Your ${service} booking for ${booking.plate} was declined. Please choose another time.`;
   try {
-    db.prepare('UPDATE bookings SET status = ?, decided_by = ?, customer_notification = ? WHERE id = ?')
-      .run(status, req.account.username, notification, booking.id);
+    db.prepare('UPDATE bookings SET status = ?, decided_by = ?, decided_at = ?, customer_notification = ? WHERE id = ?')
+      .run(status, req.account.username, new Date().toISOString(), notification, booking.id);
 
     // AC12: the customer is emailed as soon as the decision is saved.
     sendNow(db, {

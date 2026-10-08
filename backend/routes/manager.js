@@ -3,6 +3,12 @@ const { getDb } = require('../db/db');
 const { requireAccount, denyAccess } = require('../auth');
 const { hashPassword } = require('../passwords');
 const {
+  addDays,
+  isValidDateString,
+  workshopClock,
+  workshopLocalToUtc,
+} = require('../services/workshopTime');
+const {
   SERVICE_TYPES,
   getLatestChecklist,
   listChecklistVersions,
@@ -164,116 +170,131 @@ function getKnownMechanics(db) {
   return [...names].sort();
 }
 
+// --- Quality dashboard (FR11-FR17) -----------------------------------------
+
+const DEFAULT_RANGE_DAYS = 30;
+
 /**
- * GET /api/manager/dashboard?mechanic=<username>
+ * Resolves ?from=YYYY-MM-DD&to=YYYY-MM-DD (workshop-local dates, inclusive) into
+ * UTC bounds. Defaults to the last 30 days including today.
+ * Returns { error } for invalid input.
+ */
+function resolveDateRange(query) {
+  const today = workshopClock().date;
+  const to = query.to || today;
+  const from = query.from || addDays(to, -(DEFAULT_RANGE_DAYS - 1));
+  if (!isValidDateString(from) || !isValidDateString(to)) {
+    return { error: 'Dates must be valid and in YYYY-MM-DD format.' };
+  }
+  if (from > to) {
+    return { error: 'The start date must be on or before the end date.' };
+  }
+  return {
+    from,
+    to,
+    startUtc: workshopLocalToUtc(from).toISOString(),
+    // Exclusive end: the start of the day after `to`.
+    endUtc: workshopLocalToUtc(addDays(to, 1)).toISOString(),
+  };
+}
+
+// Repair time runs from the booked slot to completion. A job finished before its
+// booked time counts as 0 rather than a negative duration (team decision for D16).
+function repairMinutes(slotStart, completedAt) {
+  const start = workshopLocalToUtc(slotStart);
+  const end = new Date(completedAt);
+  if (!start || Number.isNaN(end.getTime())) return null;
+  return Math.max(0, Math.round((end - start) / (1000 * 60)));
+}
+
+// Completed jobs in the range, optionally for one mechanic, newest first.
+function getCompletedJobs(db, range, mechanic) {
+  return db.prepare(
+    `SELECT jobs.id AS job_id, jobs.mechanic_name, jobs.status AS job_status,
+            jobs.checklist_compliant, jobs.completion_percent,
+            bookings.id AS booking_id, bookings.service_type, bookings.slot_start,
+            bookings.completed_at, bookings.confirmation_ref,
+            vehicles.plate, vehicles.make, vehicles.model,
+            customers.name AS customer_name
+     FROM jobs
+     JOIN bookings ON bookings.id = jobs.booking_id
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     JOIN customers ON customers.id = vehicles.customer_id
+     WHERE bookings.completed_at >= ? AND bookings.completed_at < ?
+       ${mechanic ? 'AND jobs.mechanic_name = ?' : ''}
+     ORDER BY bookings.completed_at DESC`
+  ).all(range.startUtc, range.endUtc, ...(mechanic ? [mechanic] : []));
+}
+
+function percent(part, whole) {
+  return whole > 0 ? Math.round((part / whole) * 100) : null;
+}
+
+/**
+ * GET /api/manager/dashboard?mechanic=<username>&from=YYYY-MM-DD&to=YYYY-MM-DD
  *
- * Summary cards:
- *  - 
- *  - 
- *  - 
- *  - 
- *  - 
+ * Summary cards for jobs completed in the date range (bookings decided in the
+ * range for the acceptance rate):
+ *  - totalCompletedJobs (FR11)
+ *  - averageRepairTimeHours: booked slot to completion (FR13)
+ *  - acceptanceRatePercent: approved / decided requests (FR14)
+ *  - checklistCompliancePercent: compliant jobs / completed jobs (FR15)
+ *  - incompleteChecklistCount: completed jobs with unticked items (FR16)
+ *  - averageChecklistCompletionPercent: mean stored completion % (AC18, AC19)
+ * All can be filtered to one mechanic (FR17).
  */
 router.get('/dashboard', (req, res) => {
+  const range = resolveDateRange(req.query);
+  if (range.error) return res.status(400).json({ error: range.error });
+
   const db = getDb();
   const mechanic = req.query.mechanic || null;
+  const jobs = getCompletedJobs(db, range, mechanic);
 
-  // totalCompletedJobs - completed jobs (all jobs are compliant
-  // since the checklist endpoint only ever saves a job once every item is checked)
-  const jobParams = mechanic ? [mechanic] : [];
-  const jobFilter = mechanic ? 'WHERE jobs.mechanic_name = ?' : '';
-  const totalCompletedJobs = db.prepare(
-    `SELECT COUNT(*) AS n FROM jobs ${jobFilter}`
-  ).get(...jobParams).n;
-
-  // incompleteChecklistCount - confirmed bookings that don't have a
-  // completed job yet -> work that's still in progress
-  const bookingFilter = mechanic ? 'AND bookings.decided_by = ?' : '';
-  const incompleteChecklistCount = db.prepare(
-    `SELECT COUNT(*) AS n FROM bookings
-     WHERE bookings.status = 'confirmed' ${bookingFilter}`
-  ).get(...(mechanic ? [mechanic] : [])).n;
-
-  // averageRepairTimeMinutes - mean(completed_at - slot_start) across completed bookings
-  const durationsQuery = mechanic
-    ? `SELECT bookings.slot_start, bookings.completed_at
-       FROM jobs
-       JOIN bookings ON bookings.id = jobs.booking_id
-       WHERE jobs.mechanic_name = ? AND bookings.completed_at IS NOT NULL`
-    : `SELECT bookings.slot_start, bookings.completed_at
-       FROM jobs
-       JOIN bookings ON bookings.id = jobs.booking_id
-       WHERE bookings.completed_at IS NOT NULL`;
-  const durationsRows = db.prepare(durationsQuery).all(...jobParams);
-  let averageRepairTimeMinutes = null;
-  if (durationsRows.length > 0) {
-    const totalMinutes = durationsRows.reduce((sum, row) => {
-      const start = new Date(row.slot_start.replace(' ', 'T'));
-      const end = new Date(row.completed_at.replace(' ', 'T'));
-      return sum + (end - start) / (1000 * 60);
-    }, 0);
-    averageRepairTimeMinutes = Math.round(totalMinutes / durationsRows.length);
-  }
-
-  // acceptanceRatePercent - confirmed / (confirmed + denied) decided bookings
-  const decidedFilter = mechanic ? 'AND decided_by = ?' : '';
-  const decidedCounts = db.prepare(
-    `SELECT status, COUNT(*) AS n FROM bookings
-     WHERE status IN ('confirmed', 'completed', 'denied') ${decidedFilter}
-     GROUP BY status`
-  ).all(...(mechanic ? [mechanic] : []));
-  const confirmedLike = decidedCounts
-    .filter((row) => row.status === 'confirmed' || row.status === 'completed')
-    .reduce((sum, row) => sum + row.n, 0);
-  const denied = decidedCounts.find((row) => row.status === 'denied')?.n || 0;
-  const totalDecided = confirmedLike + denied;
-  const acceptanceRatePercent = totalDecided > 0
-    ? Math.round((confirmedLike / totalDecided) * 100)
+  const totalCompletedJobs = jobs.length;
+  const compliantJobs = jobs.filter((job) => job.checklist_compliant === 1).length;
+  const durations = jobs
+    .map((job) => repairMinutes(job.slot_start, job.completed_at))
+    .filter((minutes) => minutes !== null);
+  const averageRepairTimeHours = durations.length > 0
+    ? Math.round((durations.reduce((sum, minutes) => sum + minutes, 0) / durations.length / 60) * 10) / 10
+    : null;
+  const averageChecklistCompletionPercent = totalCompletedJobs > 0
+    ? Math.round(jobs.reduce((sum, job) => sum + job.completion_percent, 0) / totalCompletedJobs)
     : null;
 
-    // checklistCompliancePercent - completed jobs / (completed jobs + incomplete)
-  const complianceDenominator = totalCompletedJobs + incompleteChecklistCount;
-  const checklistCompliancePercent = complianceDenominator > 0
-    ? Math.round((totalCompletedJobs / complianceDenominator) * 100)
-    : null;
+  // A request counts as approved if it was not denied (approved bookings may since
+  // have been completed or cancelled).
+  const decided = db.prepare(
+    `SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'denied' THEN 0 ELSE 1 END) AS approved
+     FROM bookings
+     WHERE decided_at >= ? AND decided_at < ?
+       ${mechanic ? 'AND decided_by = ?' : ''}`
+  ).get(range.startUtc, range.endUtc, ...(mechanic ? [mechanic] : []));
 
   return res.json({
     mechanics: getKnownMechanics(db),
     selectedMechanic: mechanic,
+    range: { from: range.from, to: range.to },
     totals: {
       totalCompletedJobs,
-      incompleteChecklistCount,
-      averageRepairTimeMinutes,
-      acceptanceRatePercent,
-      checklistCompliancePercent,
+      incompleteChecklistCount: totalCompletedJobs - compliantJobs,
+      averageRepairTimeHours,
+      acceptanceRatePercent: percent(decided.approved || 0, decided.total),
+      checklistCompliancePercent: percent(compliantJobs, totalCompletedJobs),
+      averageChecklistCompletionPercent,
     },
   });
 });
 
-
-// Gets list of completed jobs for dashboard's job list sorted by most recent first
+// Completed jobs for the dashboard's job list, using the same filters as the cards.
 router.get('/jobs', (req, res) => {
-  const db = getDb();
-  const mechanic = req.query.mechanic || null;
+  const range = resolveDateRange(req.query);
+  if (range.error) return res.status(400).json({ error: range.error });
 
-  const query = `
-    SELECT jobs.id AS job_id, jobs.mechanic_name, jobs.status AS job_status,
-           bookings.id AS booking_id, bookings.service_type, bookings.slot_start,
-           bookings.completed_at, bookings.confirmation_ref,
-           vehicles.plate, vehicles.make, vehicles.model,
-           customers.name AS customer_name
-    FROM jobs
-    JOIN bookings ON bookings.id = jobs.booking_id
-    JOIN vehicles ON vehicles.id = bookings.vehicle_id
-    JOIN customers ON customers.id = vehicles.customer_id
-    ${mechanic ? 'WHERE jobs.mechanic_name = ?' : ''}
-    ORDER BY datetime(bookings.completed_at) DESC
-  `;
-  const jobs = mechanic ? db.prepare(query).all(mechanic) : db.prepare(query).all();
-
+  const jobs = getCompletedJobs(getDb(), range, req.query.mechanic || null);
   return res.json({ jobs });
 });
-
 
 // Gets the full details for a single job
 router.get('/jobs/:jobId', (req, res) => {
@@ -296,22 +317,21 @@ router.get('/jobs/:jobId', (req, res) => {
 
   // The job's own checklist version, so later template edits never change what is shown here.
   const checklist = db.prepare('SELECT * FROM checklists WHERE id = ?').get(job.checklist_id);
-  // Every saved job passed every item on its checklist so the completed state is just "all"
   const items = checklist ? JSON.parse(checklist.items_json) : [];
+  // Jobs saved before ticks were recorded only ever saved with every item ticked.
+  const ticked = job.completed_items_json ? JSON.parse(job.completed_items_json) : items;
 
-  let durationMinutes = null;
-  if (job.completed_at) {
-    const start = new Date(job.slot_start.replace(' ', 'T'));
-    const end = new Date(job.completed_at.replace(' ', 'T'));
-    durationMinutes = Math.round((end - start) / (1000 * 60));
-  }
+  const slotStart = workshopLocalToUtc(job.slot_start);
+  const completedAt = job.completed_at ? new Date(job.completed_at) : null;
 
   return res.json({
     job: {
       ...job,
-      checklistItems: items.map((item) => ({ item, completed: true })),
+      checklistItems: items.map((item) => ({ item, completed: ticked.includes(item) })),
       checklistVersion: checklist?.version ?? null,
-      durationMinutes,
+      completionPercent: job.completion_percent,
+      durationMinutes: job.completed_at ? repairMinutes(job.slot_start, job.completed_at) : null,
+      completedEarly: Boolean(slotStart && completedAt && completedAt < slotStart),
     },
   });
 });

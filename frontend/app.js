@@ -876,7 +876,8 @@ async function loadChecklistItems(serviceType) {
 
 document.getElementById('checklist-booking-id').addEventListener('change', updateChecklistServiceType);
 
-// Save a compliant job only after every item has been checked.
+// Close the job: fully ticked jobs are compliant; anything less is saved as
+// "Checklist Incomplete" (with its completion %) after the mechanic confirms.
 document.getElementById('checklist-job-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -884,10 +885,18 @@ document.getElementById('checklist-job-form').addEventListener('submit', async (
   const checkboxes = [...form.querySelectorAll('input[name="checklistItem"]')];
   const completedItems = checkboxes.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
 
-  if (checkboxes.length === 0 || completedItems.length !== checkboxes.length) {
-    resultBox.textContent = 'Complete every checklist item before saving.';
+  if (checkboxes.length === 0) {
+    resultBox.textContent = 'Select a confirmed booking to load its checklist.';
     resultBox.className = 'result-error';
     return;
+  }
+  if (completedItems.length < checkboxes.length) {
+    const percentDone = Math.round((completedItems.length / checkboxes.length) * 100);
+    const accepted = window.confirm(
+      `Only ${completedItems.length} of ${checkboxes.length} checklist items are ticked (${percentDone}%). `
+      + 'Close this job as "Checklist Incomplete"?'
+    );
+    if (!accepted) return;
   }
 
   const formData = new FormData(form);
@@ -909,7 +918,7 @@ document.getElementById('checklist-job-form').addEventListener('submit', async (
       return;
     }
 
-    resultBox.textContent = `Job #${data.jobId} saved as ${data.status}.`;
+    resultBox.textContent = `Job #${data.jobId} saved as ${data.status} (${data.completionPercent}% of checklist complete).`;
     resultBox.className = 'result-success';
     document.getElementById('checklist-booking-id').value = '';
     updateChecklistServiceType();
@@ -990,6 +999,15 @@ function formatMinutes(minutes) {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+}
+
+function formatHours(hours) {
+  if (hours === null || hours === undefined) return 'N/A';
+  return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+}
+
+function formatDateOnly(dateString) {
+  return new Date(`${dateString}T00:00:00`).toLocaleDateString();
 }
 
 function formatPercent(value) {
@@ -1276,12 +1294,20 @@ async function loadManagerPortal() {
   loadManagerAccounts();
   loadManagerChecklists();
   const filterSelect = document.getElementById('manager-mechanic-filter');
+  const fromInput = document.getElementById('manager-date-from');
+  const toInput = document.getElementById('manager-date-to');
+  const rangeSummary = document.getElementById('manager-range-summary');
   const selectedMechanic = filterSelect.value;
   const jobsContainer = document.getElementById('manager-jobs-list');
   jobsContainer.textContent = 'Loading...';
 
   try {
-    const query = selectedMechanic ? `?mechanic=${encodeURIComponent(selectedMechanic)}` : '';
+    // Empty dates let the server apply its default (the last 30 days).
+    const params = new URLSearchParams();
+    if (selectedMechanic) params.set('mechanic', selectedMechanic);
+    if (fromInput.value) params.set('from', fromInput.value);
+    if (toInput.value) params.set('to', toInput.value);
+    const query = params.toString() ? `?${params}` : '';
     const [dashboardRes, jobsRes] = await Promise.all([
       fetch(`${API_BASE}/manager/dashboard${query}`, { headers: requestHeaders() }),
       fetch(`${API_BASE}/manager/jobs${query}`, { headers: requestHeaders() }),
@@ -1290,9 +1316,20 @@ async function loadManagerPortal() {
     const jobsData = await jobsRes.json();
 
     if (!dashboardRes.ok) {
-      jobsContainer.textContent = dashboardData.error || 'Unable to load the manager dashboard.';
+      rangeSummary.textContent = dashboardData.error || 'Unable to load the manager dashboard.';
+      rangeSummary.className = 'dashboard-range-summary result-error';
+      // Clear the cards so figures from the previous range are not mistaken for this one.
+      ['stat-total-completed', 'stat-incomplete', 'stat-avg-time', 'stat-acceptance', 'stat-compliance', 'stat-avg-completion']
+        .forEach((id) => { document.getElementById(id).textContent = '-'; });
+      jobsContainer.textContent = '';
       return;
     }
+
+    // Show the range actually applied, including the server's default.
+    fromInput.value = dashboardData.range.from;
+    toInput.value = dashboardData.range.to;
+    rangeSummary.textContent = `Showing jobs completed ${formatDateOnly(dashboardData.range.from)} to ${formatDateOnly(dashboardData.range.to)}.`;
+    rangeSummary.className = 'dashboard-range-summary';
 
     // Keep the current selection when repopulating the filter dropdown.
     filterSelect.innerHTML = '<option value="">All mechanics</option>';
@@ -1307,13 +1344,14 @@ async function loadManagerPortal() {
     const totals = dashboardData.totals;
     document.getElementById('stat-total-completed').textContent = totals.totalCompletedJobs;
     document.getElementById('stat-incomplete').textContent = totals.incompleteChecklistCount;
-    document.getElementById('stat-avg-time').textContent = formatMinutes(totals.averageRepairTimeMinutes);
+    document.getElementById('stat-avg-time').textContent = formatHours(totals.averageRepairTimeHours);
     document.getElementById('stat-acceptance').textContent = formatPercent(totals.acceptanceRatePercent);
     document.getElementById('stat-compliance').textContent = formatPercent(totals.checklistCompliancePercent);
+    document.getElementById('stat-avg-completion').textContent = formatPercent(totals.averageChecklistCompletionPercent);
 
     jobsContainer.innerHTML = '';
     if (jobsData.jobs.length === 0) {
-      jobsContainer.textContent = 'No completed jobs yet.';
+      jobsContainer.textContent = 'No jobs were completed in this date range.';
       return;
     }
     jobsData.jobs.forEach((job) => {
@@ -1323,8 +1361,8 @@ async function loadManagerPortal() {
         <strong>${escapeHTML(job.plate)} - ${escapeHTML(job.make)} ${escapeHTML(job.model)}</strong><br />
         Customer: ${escapeHTML(job.customer_name)}<br />
         Mechanic: ${escapeHTML(job.mechanic_name)} — ${escapeHTML(job.service_type.replace('_', ' '))}<br />
-        Completed: ${escapeHTML(new Date(job.completed_at.replace(' ', 'T')).toLocaleString())}
-        <span class="badge badge-completed">${escapeHTML(job.job_status)}</span>
+        Completed: ${escapeHTML(new Date(job.completed_at).toLocaleString())}
+        <span class="badge ${job.checklist_compliant ? 'badge-completed' : 'badge-pending'}">${escapeHTML(job.job_status)}${job.checklist_compliant ? '' : ` · ${escapeHTML(job.completion_percent)}%`}</span>
       `;
       card.addEventListener('click', () => openJobDetails(job.job_id));
       jobsContainer.appendChild(card);
@@ -1335,6 +1373,13 @@ async function loadManagerPortal() {
 }
 
 document.getElementById('manager-mechanic-filter').addEventListener('change', loadManagerPortal);
+document.getElementById('manager-date-from').addEventListener('change', loadManagerPortal);
+document.getElementById('manager-date-to').addEventListener('change', loadManagerPortal);
+document.getElementById('manager-date-reset').addEventListener('click', () => {
+  document.getElementById('manager-date-from').value = '';
+  document.getElementById('manager-date-to').value = '';
+  loadManagerPortal();
+});
 
 async function openJobDetails(jobId) {
   const modal = document.getElementById('job-details-modal');
@@ -1358,7 +1403,10 @@ async function openJobDetails(jobId) {
       ['Customer', job.customer_name],
       ['Mechanic', job.mechanic_name],
       ['Service', job.service_type.replace('_', ' ')],
-      ['Duration', formatMinutes(job.durationMinutes)],
+      ['Duration', job.completedEarly
+        ? `${formatMinutes(job.durationMinutes)} (completed before the booked time)`
+        : formatMinutes(job.durationMinutes)],
+      ['Checklist result', `${job.status} (${job.completionPercent}% complete)`],
       ['Reference', job.confirmation_ref],
     ];
     details.forEach(([label, value]) => {
@@ -1376,9 +1424,23 @@ async function openJobDetails(jobId) {
     content.appendChild(checklistHeading);
 
     const list = document.createElement('ul');
-    job.checklistItems.forEach(({ item }) => {
+    list.className = 'job-checklist';
+    job.checklistItems.forEach(({ item, completed }) => {
       const li = document.createElement('li');
-      li.textContent = item;
+      li.className = completed ? 'job-checklist-done' : 'job-checklist-missed';
+      const mark = document.createElement('span');
+      mark.className = 'job-checklist-mark';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.textContent = completed ? '✓' : '✗';
+      const text = document.createElement('span');
+      text.textContent = item;
+      if (!completed) {
+        const note = document.createElement('span');
+        note.className = 'job-checklist-note';
+        note.textContent = ' (not done)';
+        text.appendChild(note);
+      }
+      li.append(mark, text);
       list.appendChild(li);
     });
     content.appendChild(list);

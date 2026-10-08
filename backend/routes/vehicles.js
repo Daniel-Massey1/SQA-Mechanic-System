@@ -2,14 +2,9 @@ const express = require('express');
 const { getDb } = require('../db/db');
 const { requireAccount, denyAccess } = require('../auth');
 
-const router = express.Router();
+const { isValidDateString: isValidDate } = require('../services/workshopTime');
 
-// Accepts real calendar dates in YYYY-MM-DD form only (rejects e.g. 2026-02-30).
-function isValidDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
+const router = express.Router();
 
 // Return all vehicles for mechanic work and manager history review.
 router.get('/all', requireAccount, (req, res) => {
