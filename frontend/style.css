@@ -353,6 +353,35 @@ button:hover { background: #a30613; }
 
 #manager-mechanic-filter { max-width: 16rem; }
 
+/* Manager dashboard filters (mechanic + date range) */
+.dashboard-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 0.85rem;
+}
+.dashboard-filter { flex: 0 1 12rem; min-width: 9rem; }
+.dashboard-filter select,
+.dashboard-filter input { max-width: none; }
+.dashboard-filters #manager-date-reset { min-height: 2.65rem; margin: 0; }
+.dashboard-range-summary { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.85rem; }
+.dashboard-range-summary.result-error { padding: 0.5rem 0.7rem; border-radius: 6px; color: #8d2f29; }
+
+/* Job details: which checklist items were ticked */
+.job-checklist { padding-left: 0; list-style: none; }
+.job-checklist li { display: flex; gap: 0.45rem; margin: 0.25rem 0; }
+.job-checklist-mark { flex-shrink: 0; width: 1rem; font-weight: 700; }
+.job-checklist-done .job-checklist-mark { color: var(--success); }
+.job-checklist-missed { color: var(--muted); }
+.job-checklist-missed .job-checklist-mark { color: #9d0715; }
+.job-checklist-note { color: #9d0715; font-size: 0.85rem; }
+
+@media (max-width: 520px) {
+  .dashboard-filter { flex-basis: 100%; }
+  #manager-mechanic-filter { max-width: none; }
+  .dashboard-filters #manager-date-reset { margin-top: 0.75rem; }
+}
+
 .summary-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));

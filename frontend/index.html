@@ -394,10 +394,24 @@
         <h2>Manager Dashboard</h2>
       </div>
       <div class="manager-body">
-        <label for="manager-mechanic-filter">Filter by mechanic</label>
-        <select id="manager-mechanic-filter">
-          <option value="">All mechanics</option>
-        </select>
+        <div class="dashboard-filters">
+          <div class="dashboard-filter">
+            <label for="manager-mechanic-filter">Mechanic</label>
+            <select id="manager-mechanic-filter">
+              <option value="">All mechanics</option>
+            </select>
+          </div>
+          <div class="dashboard-filter">
+            <label for="manager-date-from">From</label>
+            <input id="manager-date-from" type="date" />
+          </div>
+          <div class="dashboard-filter">
+            <label for="manager-date-to">To</label>
+            <input id="manager-date-to" type="date" />
+          </div>
+          <button id="manager-date-reset" type="button" class="details-btn">Last 30 days</button>
+        </div>
+        <p id="manager-range-summary" class="dashboard-range-summary" role="status"></p>
 
         <div class="summary-cards" id="summary-cards">
           <div class="summary-card">
@@ -419,6 +433,10 @@
           <div class="summary-card">
             <span class="summary-label">Checklist Compliance</span>
             <span class="summary-value" id="stat-compliance">-</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-label">Avg Checklist Completion</span>
+            <span class="summary-value" id="stat-avg-completion">-</span>
           </div>
         </div>
 

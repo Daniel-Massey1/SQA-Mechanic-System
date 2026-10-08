@@ -14,11 +14,11 @@
  */
 
 const { processOutbox, queueEmail } = require('./notifications');
+const { addDays, workshopClock } = require('./workshopTime');
 
 const REMINDER_WINDOW_DAYS = 14;
 const DAILY_CHECK_HOUR = 8;
 const TICK_INTERVAL_MS = 60 * 1000;
-const WORKSHOP_TIMEZONE = process.env.WORKSHOP_TIMEZONE || 'Pacific/Auckland';
 const LAST_CHECK_KEY = 'reminder_check_date';
 
 const REMINDER_TYPES = [
@@ -35,28 +35,6 @@ const REMINDER_TYPES = [
     describe: (vehicle) => `next service is due on ${vehicle.due_date}`,
   },
 ];
-
-// Current date and hour in the workshop's timezone. Using toISOString() here
-// would give the UTC date, which is a day behind NZ every morning.
-function workshopClock(now = new Date()) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: WORKSHOP_TIMEZONE,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(now).map((part) => [part.type, part.value])
-  );
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
-}
-
-function addDays(dateString, days) {
-  const date = new Date(`${dateString}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
 
 // Queues reminders for every vehicle due exactly REMINDER_WINDOW_DAYS after `today`.
 function queueDueReminders(db, today, now = new Date()) {
