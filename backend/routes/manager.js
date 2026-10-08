@@ -2,6 +2,13 @@ const express = require('express');
 const { getDb } = require('../db/db');
 const { requireAccount, denyAccess } = require('../auth');
 const { hashPassword } = require('../passwords');
+const {
+  SERVICE_TYPES,
+  getLatestChecklist,
+  listChecklistVersions,
+  listLatestChecklists,
+  validateChecklistItems,
+} = require('../services/checklists');
 
 const router = express.Router();
 
@@ -72,6 +79,77 @@ router.delete('/accounts/:accountId', (req, res) => {
   // Remove login access only; customer and workshop records remain available for audit/history.
   db.prepare('DELETE FROM users WHERE id = ?').run(accountId);
   return res.json({ message: 'Account deleted. Associated service records were retained.' });
+});
+
+// --- Service checklist templates (NFR05) ---------------------------------
+
+// Current version of every service type's checklist.
+router.get('/checklists', (req, res) => {
+  return res.json({ checklists: listLatestChecklists(getDb()) });
+});
+
+// Every version of one service type's checklist, newest first.
+router.get('/checklists/:serviceType/versions', (req, res) => {
+  if (!SERVICE_TYPES.includes(req.params.serviceType)) {
+    return res.status(400).json({ error: 'Choose a valid service type.' });
+  }
+  return res.json({ versions: listChecklistVersions(getDb(), req.params.serviceType) });
+});
+
+/**
+ * PUT /api/manager/checklists/:serviceType
+ * Body: { items: string[], baseVersion: number }
+ *
+ * Saves the edited items as a new version; existing versions are never changed.
+ * baseVersion is the version the manager opened - if someone else has saved since,
+ * the request is rejected so their changes are not silently overwritten.
+ */
+router.put('/checklists/:serviceType', (req, res) => {
+  const { serviceType } = req.params;
+  if (!SERVICE_TYPES.includes(serviceType)) {
+    return res.status(400).json({ error: 'Choose a valid service type.' });
+  }
+
+  const validation = validateChecklistItems(req.body?.items);
+  if (validation.error) {
+    return res.status(400).json({ error: validation.error });
+  }
+
+  const db = getDb();
+  const saveVersion = db.transaction(() => {
+    const current = getLatestChecklist(db, serviceType);
+    if (!current) return { status: 404, error: 'Checklist not found.' };
+    if (Number(req.body?.baseVersion) !== current.version) {
+      return {
+        status: 409,
+        error: 'This checklist was changed by someone else since you opened it. Reload it and make your changes again.',
+      };
+    }
+    if (JSON.stringify(current.items) === JSON.stringify(validation.items)) {
+      return { status: 400, error: 'No changes to save.' };
+    }
+
+    const result = db.prepare(
+      `INSERT INTO checklists (service_type, items_json, version, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(serviceType, JSON.stringify(validation.items), current.version + 1, req.account.username, new Date().toISOString());
+    return { checklistId: result.lastInsertRowid };
+  });
+
+  try {
+    const outcome = saveVersion();
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+    return res.json({ checklist: getLatestChecklist(db, serviceType) });
+  } catch (error) {
+    // The unique (service_type, version) index catches two saves landing at the same moment.
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.code === 'SQLITE_CONSTRAINT') {
+      return res.status(409).json({
+        error: 'This checklist was changed by someone else since you opened it. Reload it and make your changes again.',
+      });
+    }
+    console.error(error);
+    return res.status(500).json({ error: 'Unable to save the checklist.' });
+  }
 });
 
 // Populates dashboard mechanic filter dropdown with distinct list of mechanic that approved, denied, completed booking
@@ -216,6 +294,7 @@ router.get('/jobs/:jobId', (req, res) => {
     return res.status(404).json({ error: 'Job not found.' });
   }
 
+  // The job's own checklist version, so later template edits never change what is shown here.
   const checklist = db.prepare('SELECT * FROM checklists WHERE id = ?').get(job.checklist_id);
   // Every saved job passed every item on its checklist so the completed state is just "all"
   const items = checklist ? JSON.parse(checklist.items_json) : [];
@@ -231,6 +310,7 @@ router.get('/jobs/:jobId', (req, res) => {
     job: {
       ...job,
       checklistItems: items.map((item) => ({ item, completed: true })),
+      checklistVersion: checklist?.version ?? null,
       durationMinutes,
     },
   });

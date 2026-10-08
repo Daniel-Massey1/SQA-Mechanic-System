@@ -128,11 +128,15 @@ function getDb() {
       last_error TEXT
     );
 
-    -- Stub tables for mechanic/manager sides. Left minimal on purpose.
+    -- Versioned checklist templates: managers' edits add a new version row
+    -- (see services/checklists.js), so jobs keep the version they were done with.
     CREATE TABLE IF NOT EXISTS checklists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       service_type TEXT NOT NULL,
-      items_json TEXT NOT NULL          -- JSON array of checklist item strings
+      items_json TEXT NOT NULL,         -- JSON array of checklist item strings
+      version INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT,                  -- manager username; NULL for the original seeded template
+      created_at TEXT                   -- ISO timestamp; NULL for the original seeded template
     );
 
     CREATE TABLE IF NOT EXISTS jobs (
@@ -170,6 +174,18 @@ function getDb() {
   if (!vehicleColumns.some((column) => column.name === 'service_due')) {
     db.exec('ALTER TABLE vehicles ADD COLUMN service_due TEXT');
   }
+  const checklistColumns = db.prepare('PRAGMA table_info(checklists)').all();
+  if (!checklistColumns.some((column) => column.name === 'version')) {
+    db.exec('ALTER TABLE checklists ADD COLUMN version INTEGER NOT NULL DEFAULT 1');
+  }
+  if (!checklistColumns.some((column) => column.name === 'created_by')) {
+    db.exec('ALTER TABLE checklists ADD COLUMN created_by TEXT');
+  }
+  if (!checklistColumns.some((column) => column.name === 'created_at')) {
+    db.exec('ALTER TABLE checklists ADD COLUMN created_at TEXT');
+  }
+  // Two managers saving at once cannot both create the same version number.
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_checklist_version ON checklists (service_type, version)');
   const jobColumns = db.prepare('PRAGMA table_info(jobs)').all();
   if (!jobColumns.some((column) => column.name === 'status')) {
     db.exec("ALTER TABLE jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'In Progress'");

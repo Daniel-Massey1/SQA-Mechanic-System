@@ -243,6 +243,7 @@ accountButton.addEventListener('click', () => {
     localStorage.removeItem(STORED_SESSION_KEY);
     document.body.classList.remove('signup-open');
     clearPrivateVehicleData();
+    closeChecklistEditor();
     updateAccountControls();
     if (document.getElementById('view-bookings').classList.contains('active')) loadBookings();
     return;
@@ -845,6 +846,7 @@ function updateChecklistServiceType() {
 async function loadChecklistItems(serviceType) {
   const container = document.getElementById('checklist-items');
   container.textContent = 'Loading checklist...';
+  delete container.dataset.checklistId;
 
   try {
     const res = await fetch(`${API_BASE}/mechanics/checklists/${serviceType}`, { headers: requestHeaders() });
@@ -855,6 +857,8 @@ async function loadChecklistItems(serviceType) {
     }
 
     container.innerHTML = '';
+    // Remember which template version was loaded so the job is saved against it.
+    container.dataset.checklistId = data.checklist.id;
     data.checklist.items.forEach((item) => {
       const label = document.createElement('label');
       label.className = 'checklist-item';
@@ -894,6 +898,7 @@ document.getElementById('checklist-job-form').addEventListener('submit', async (
       body: JSON.stringify({
         bookingId: Number(formData.get('bookingId')),
         serviceType: document.getElementById('checklist-service-type').value,
+        checklistId: Number(document.getElementById('checklist-items').dataset.checklistId) || undefined,
         completedItems,
       }),
     });
@@ -1069,8 +1074,207 @@ async function deleteManagedAccount(account) {
   }
 }
 
+// --- Manager: service checklist templates ----------------------------------
+const SERVICE_TYPE_LABELS = { basic_service: 'Basic Service', full_service: 'Full Service', wof: 'WOF' };
+// The checklist open in the editor and the version it was opened at.
+let checklistEditorState = null;
+
+function describeChecklistVersion(checklist) {
+  return checklist.created_by
+    ? `Version ${checklist.version} · updated ${new Date(checklist.created_at).toLocaleString()} by ${checklist.created_by}`
+    : `Version ${checklist.version} · original template`;
+}
+
+async function loadManagerChecklists() {
+  const container = document.getElementById('manager-checklist-list');
+  container.textContent = 'Loading checklists...';
+
+  try {
+    const response = await fetch(`${API_BASE}/manager/checklists`, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      container.textContent = data.error || 'Unable to load checklists.';
+      return;
+    }
+
+    container.replaceChildren();
+    data.checklists.forEach((checklist) => {
+      const card = document.createElement('div');
+      card.className = 'checklist-summary';
+      const text = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = SERVICE_TYPE_LABELS[checklist.service_type] || checklist.service_type;
+      const meta = document.createElement('p');
+      meta.textContent = `${checklist.items.length} items · ${describeChecklistVersion(checklist)}`;
+      text.append(title, meta);
+
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'details-btn';
+      editButton.textContent = 'Edit';
+      editButton.setAttribute('aria-label', `Edit ${title.textContent} checklist`);
+      editButton.addEventListener('click', () => openChecklistEditor(checklist));
+      card.append(text, editButton);
+      container.appendChild(card);
+    });
+  } catch {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+function openChecklistEditor(checklist) {
+  checklistEditorState = { serviceType: checklist.service_type, baseVersion: checklist.version };
+  const label = SERVICE_TYPE_LABELS[checklist.service_type] || checklist.service_type;
+  document.getElementById('checklist-editor-title').textContent = `Edit ${label} checklist (version ${checklist.version})`;
+  document.getElementById('checklist-editor-empty').hidden = true;
+  document.getElementById('checklist-editor-form').hidden = false;
+  const result = document.getElementById('checklist-editor-result');
+  result.textContent = '';
+  result.className = '';
+
+  document.getElementById('checklist-editor-items').replaceChildren();
+  checklist.items.forEach((item) => addChecklistEditorRow(item));
+  renumberChecklistEditorRows();
+  loadChecklistVersions(checklist.service_type);
+}
+
+function closeChecklistEditor() {
+  checklistEditorState = null;
+  document.getElementById('checklist-editor-title').textContent = 'Edit a checklist';
+  document.getElementById('checklist-editor-form').hidden = true;
+  document.getElementById('checklist-editor-empty').hidden = false;
+}
+
+function createRowButton(text, className, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `${className} checklist-row-button`;
+  button.textContent = text;
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+function addChecklistEditorRow(value = '') {
+  const list = document.getElementById('checklist-editor-items');
+  const row = document.createElement('li');
+  row.className = 'checklist-editor-row';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = value;
+  input.minLength = 3;
+  input.maxLength = 200;
+  input.required = true;
+
+  const moveUp = createRowButton('↑', 'details-btn', () => {
+    if (row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+    renumberChecklistEditorRows();
+  });
+  const moveDown = createRowButton('↓', 'details-btn', () => {
+    if (row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+    renumberChecklistEditorRows();
+  });
+  const remove = createRowButton('Remove', 'delete-account-button', () => {
+    row.remove();
+    renumberChecklistEditorRows();
+  });
+
+  row.append(input, moveUp, moveDown, remove);
+  list.appendChild(row);
+  return input;
+}
+
+// Keeps accessible labels and the first/last move buttons in sync with the order.
+function renumberChecklistEditorRows() {
+  const rows = [...document.getElementById('checklist-editor-items').children];
+  rows.forEach((row, index) => {
+    const [input, moveUp, moveDown, remove] = row.children;
+    input.setAttribute('aria-label', `Checklist item ${index + 1}`);
+    moveUp.setAttribute('aria-label', `Move item ${index + 1} up`);
+    moveDown.setAttribute('aria-label', `Move item ${index + 1} down`);
+    remove.setAttribute('aria-label', `Remove item ${index + 1}`);
+    moveUp.disabled = index === 0;
+    moveDown.disabled = index === rows.length - 1;
+  });
+}
+
+async function loadChecklistVersions(serviceType) {
+  const container = document.getElementById('checklist-version-list');
+  container.textContent = 'Loading versions...';
+
+  try {
+    const response = await fetch(`${API_BASE}/manager/checklists/${serviceType}/versions`, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      container.textContent = data.error || 'Unable to load previous versions.';
+      return;
+    }
+
+    container.replaceChildren();
+    data.versions.forEach((version, index) => {
+      const entry = document.createElement('details');
+      entry.className = 'checklist-version';
+      const summary = document.createElement('summary');
+      summary.textContent = `${describeChecklistVersion(version)} · ${version.items.length} items${index === 0 ? ' (current)' : ''}`;
+      const items = document.createElement('ol');
+      version.items.forEach((item) => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        items.appendChild(li);
+      });
+      entry.append(summary, items);
+      container.appendChild(entry);
+    });
+  } catch {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+document.getElementById('checklist-add-item').addEventListener('click', () => {
+  const input = addChecklistEditorRow();
+  renumberChecklistEditorRows();
+  input.focus();
+});
+
+document.getElementById('checklist-editor-cancel').addEventListener('click', closeChecklistEditor);
+
+document.getElementById('checklist-editor-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!checklistEditorState) return;
+  const result = document.getElementById('checklist-editor-result');
+  const items = [...document.querySelectorAll('#checklist-editor-items input')].map((input) => input.value);
+
+  try {
+    const response = await fetch(`${API_BASE}/manager/checklists/${checklistEditorState.serviceType}`, {
+      method: 'PUT',
+      headers: requestHeaders(true),
+      body: JSON.stringify({ items, baseVersion: checklistEditorState.baseVersion }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      result.textContent = data.error || 'Unable to save the checklist.';
+      result.className = 'result-error';
+      // Someone else saved first: refresh the list so the newer version is visible.
+      if (response.status === 409) loadManagerChecklists();
+      return;
+    }
+
+    const label = SERVICE_TYPE_LABELS[data.checklist.service_type] || data.checklist.service_type;
+    checklistEditorState.baseVersion = data.checklist.version;
+    document.getElementById('checklist-editor-title').textContent = `Edit ${label} checklist (version ${data.checklist.version})`;
+    result.textContent = `Saved as version ${data.checklist.version}. New ${label} jobs will use this checklist.`;
+    result.className = 'result-success';
+    loadManagerChecklists();
+    loadChecklistVersions(data.checklist.service_type);
+  } catch {
+    result.textContent = 'Could not reach the server. Please try again.';
+    result.className = 'result-error';
+  }
+});
+
 async function loadManagerPortal() {
   loadManagerAccounts();
+  loadManagerChecklists();
   const filterSelect = document.getElementById('manager-mechanic-filter');
   const selectedMechanic = filterSelect.value;
   const jobsContainer = document.getElementById('manager-jobs-list');
@@ -1166,7 +1370,9 @@ async function openJobDetails(jobId) {
     });
 
     const checklistHeading = document.createElement('p');
-    checklistHeading.innerHTML = '<strong>Checklist:</strong>';
+    checklistHeading.innerHTML = job.checklistVersion
+      ? `<strong>Checklist (version ${escapeHTML(job.checklistVersion)}):</strong>`
+      : '<strong>Checklist:</strong>';
     content.appendChild(checklistHeading);
 
     const list = document.createElement('ul');

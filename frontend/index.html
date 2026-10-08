@@ -457,6 +457,42 @@
           </div>
         </section>
 
+        <section class="account-management checklist-management" aria-labelledby="checklist-management-title">
+          <div class="account-management-heading">
+            <div>
+              <h3 id="checklist-management-title">Service checklists</h3>
+              <p>Saved changes apply to new jobs straight away. Completed jobs keep the checklist version they were done with.</p>
+            </div>
+          </div>
+          <div class="checklist-management-grid">
+            <section class="account-list-panel" aria-labelledby="checklist-list-title">
+              <div class="account-panel-heading">
+                <h4 id="checklist-list-title">Current checklists</h4>
+              </div>
+              <div id="manager-checklist-list" aria-live="polite">Loading checklists...</div>
+            </section>
+            <section class="account-form-panel" aria-labelledby="checklist-editor-title">
+              <div class="account-panel-heading">
+                <h4 id="checklist-editor-title">Edit a checklist</h4>
+              </div>
+              <p id="checklist-editor-empty" class="checklist-editor-hint">Choose a checklist above to edit it.</p>
+              <form id="checklist-editor-form" hidden>
+                <ol id="checklist-editor-items" class="checklist-editor-items"></ol>
+                <button id="checklist-add-item" type="button" class="details-btn">Add item</button>
+                <p id="checklist-editor-result" role="status"></p>
+                <div class="checklist-editor-actions">
+                  <button id="checklist-editor-cancel" type="button" class="details-btn">Cancel</button>
+                  <button type="submit">Save checklist</button>
+                </div>
+                <details class="checklist-version-history">
+                  <summary>Previous versions</summary>
+                  <div id="checklist-version-list"></div>
+                </details>
+              </form>
+            </section>
+          </div>
+        </section>
+
         <h3>Completed Jobs</h3>
         <div id="manager-jobs-list"></div>
       </div>
