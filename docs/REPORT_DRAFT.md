@@ -1,6 +1,6 @@
 # Assessment 2: Report Draft (plans and current evidence)
 
-> **Status:** working draft, 2026-10-08. Feature work is still in progress (see `PROJECT_NOTES.md` section 4), so results, counts and the RTM will change. Re-run the test cases after the remaining features are built.
+> **Status:** working draft, updated 2026-10-08 after the manager dashboard bundle (`b75c42a`). Some feature work remains (see `PROJECT_NOTES.md` section 4: R04–R09), so results, counts and the RTM may still change. Re-run the test cases after the remaining features are built.
 > **Readers:** the team, and any AI assistant helping write the final report.
 > **Related:** `PROJECT_NOTES.md` has the requirement status (section 2), requirement changes C01–C11 (section 3), remaining work R01–R09 (section 4) and the defect register D01–D17 (section 5).
 
@@ -24,14 +24,14 @@ Not drafted yet, because the numbers depend on finishing the features: Task 5 (C
 | FR07 | `POST /api/mechanics/bookings/:id/decision` + email | TC13 | Pass | D02 (fixed) | ✅ |
 | FR08 | `POST /api/mechanics/diagnostics` | TC17 | Pass | — | ✅ |
 | FR09 | `GET /api/mechanics/checklists/:serviceType` (latest version) | TC15 | Pass | D07 (fixed) | ✅ |
-| FR10 | `POST /api/mechanics/jobs/checklist-compliance` | TC16 | Pass | D11 (open) | ✅ |
-| FR11 | Manager dashboard total completed jobs | TC21, TC33 | Count passes; **no date range** | — | ⚠️ (R01) |
+| FR10 | `POST /api/mechanics/jobs/checklist-compliance` (compliant when all ticked; otherwise "Checklist Incomplete" + %) | TC16, TC32 | Pass | D11 (fixed) | ✅ |
+| FR11 | Dashboard total completed jobs, date range (default last 30 days) | TC21, TC33 | Pass | — | ✅ |
 | FR12 | `GET /api/manager/jobs/:id` | TC23 | Pass | — | ✅ |
-| FR13 | Dashboard average repair time | TC22, TC33 | **Fail** (negative) | D10, D16 (open) | ⚠️ (R01, R02) |
-| FR14 | Dashboard acceptance % | TC21, TC33 | Formula passes; no date range | — | ⚠️ (R01) |
-| FR15 | Dashboard compliance % | TC32, TC33 | Blocked | D11 (open) | ⚠️ (R01, R03) |
-| FR16 | Dashboard incomplete checklists | TC32, TC33 | Blocked | D11 (open) | ⚠️ (R01, R03) |
-| FR17 | `?mechanic=` filter on dashboard and jobs | TC21 | Pass | D15 (open, low) | ✅ |
+| FR13 | Dashboard average repair time in hours (`workshopTime.js` conversion) | TC22, TC33, TC34 | Pass (failed in run 1, fixed, re-tested) | D10, D16 (fixed) | ✅ |
+| FR14 | Dashboard acceptance %, filtered by decision date (`decided_at`) | TC21, TC33 | Pass | — | ✅ |
+| FR15 | Dashboard compliance % from stored job results | TC32, TC33 | Pass | D11 (fixed) | ✅ |
+| FR16 | Dashboard count of jobs closed with unticked items | TC32, TC33 | Pass | D11 (fixed) | ✅ |
+| FR17 | `?mechanic=` filter on dashboard and jobs, combined with the date range | TC21, TC33 | Pass | D15 (fixed) | ✅ |
 | NFR01 | `requireAccount`, role checks, `denyAccess()` logging | TC04, TC20, unit tests `auth.test.js` | Pass | — | ✅ |
 | NFR02 | `services/notifications.js` outbox retries | TC26 | Pass | D05 (fixed) | ✅ |
 | NFR03 | — (performance test) | TC29 | Not run | — | ⏳ |
@@ -53,19 +53,20 @@ Not drafted yet, because the numbers depend on finishing the features: Task 5 (C
 - AC14–AC15: TC17
 - AC16: TC18
 - AC17: TC15
-- AC18: TC32 (blocked)
-- AC19: TC21, TC22
+- AC18: TC32
+- AC19: TC21, TC22, TC32
 - AC20: TC23
 - AC21–AC22: TC20
 
-**Coverage so far:**
+**Coverage so far (after `b75c42a`):**
 - **23** requirements (FR + NFR); **all 23 (100%)** have at least one linked test case. NFR03's case (TC29) is planned but not run.
-- **16 of 23 (70%)** are fully verified (✅). **6** are partial (⚠️): FR11, FR13, FR14, FR15, FR16, NFR04. **1** is unverified (⏳): NFR03.
+- **21 of 23 (91%)** are fully verified (✅), up from 16 (70%) before the dashboard bundle. **1** is partial (⚠️): NFR04. **1** is unverified (⏳): NFR03.
+- Acceptance criteria: **19 of 22** verified. AC10 is not built (R05). AC02 (3-second confirmation) and AC11 (load time) need timing measurements (TC29).
 
 The A1 exit criterion was that "85%+ of in-scope requirements have at least one linked test case". **Met (100%).**
 
 **Partially implemented / unverified / out-of-scope requirements, with justification:**
-- **FR11, FR13–FR16** (date range, compliance): in progress (R01–R03).
+- **NFR04:** first-time customer has to leave the booking flow to add a vehicle (D12, fix R04).
 - **NFR03:** performance test planned (Task 7).
 - **AC10:** plate search still to build (R05).
 - **Real email delivery:** out of scope (C10). The mocked outbox is verified instead.
@@ -75,9 +76,12 @@ The A1 exit criterion was that "85%+ of in-scope requirements have at least one 
 ## Task 3: Test cases and execution results
 
 **Execution:**
-- **Date:** 2026-10-08.
+- **Date:** 2026-10-08, two runs.
+  - **Run 1:** before the dashboard bundle; 98 checks.
+  - **Run 2:** after `b75c42a`; 118 checks (the 98 updated for new behaviour plus 20 new). Run 2 is the current result in the table below.
 - **Environment:** Windows 11, Node.js, local server on a **fresh throwaway SQLite database** (`DB_PATH` in a temp folder, port 3099).
-- **Method:** system and integration tests executed over HTTP by a temporary script (98 individual checks, grouped into the test cases below). The reminder and retry cases called the scheduler directly with a simulated clock.
+- **Method:** system and integration tests executed over HTTP by a temporary script (individual checks grouped into the test cases below). The reminder and retry cases called the scheduler directly with a simulated clock.
+- **UI evidence (run 2):** screenshots in headless Edge of the manager dashboard (desktop and mobile), the invalid-range error, job details and the mechanic checklist.
 - **Existing unit tests:** 10 automated tests (`node --test` in `backend/`), all passing.
 
 **Types:**
@@ -106,13 +110,13 @@ The A1 exit criterion was that "85%+ of in-scope requirements have at least one 
 | TC13 | Approve / deny notifies customer | FR07, AC12 | P | Mechanic approves one request and denies another | `confirmed` / `denied`; customer notice + email `sent` | As expected | Pass |
 | TC14 | Decisions are final | AC13 | N | Re-decide an approved booking; invalid decision value | 400 / 400; decided requests leave the pending list | As expected | Pass |
 | TC15 | Checklist matches service type | FR09, AC17 | P, N | Load full_service checklist; load invalid type | 10 full-service items / 400 | As expected | Pass |
-| TC16 | Checklist completion | FR10 | P, N | Save with one item unticked; wrong service type; unconfirmed booking; save fully ticked | 400 / 400 / 400 / 201 "Checklist Compliant", booking `completed`, customer notified | As expected | Pass |
+| TC16 | Checklist completion | FR10 | P, N | Ticked item not on checklist; no items sent; wrong service type; unconfirmed booking; save fully ticked | 400 / 400 / 400 / 400 / 201 "Checklist Compliant", booking `completed`, customer notified | As expected | Pass |
 | TC17 | Diagnostic entry linked to vehicle | FR08, AC14, AC15 | P, N | Add entry; unknown vehicle ID; invalid severity; missing description; customer attempt | 201 / 404 with message / 400 / 400 / 403 | As expected | Pass |
 | TC18 | Diagnostic edits are append-only | NFR06, AC16 | P | Edit an entry, then view history | New entry references the original; original kept and marked superseded | As expected | Pass |
 | TC19 | Vehicle history | FR06, AC09 | P | Customer views own vehicle history; new vehicle with no history | Newest first; fixes + flagged issues; empty state message | As expected | Pass |
 | TC20 | Role-based access | NFR01, AC21, AC22 | S | Customer requests another customer's vehicles, bookings and history, all vehicles, mechanic portal, manager dashboard; staff view any history | 403 for customer; 200 for mechanic/manager; denials logged | 403s as expected; 20 denials logged | Pass |
-| TC21 | Dashboard metrics and mechanic filter | FR11, FR14, FR17 | P | Load dashboard; filter by mechanic1; filter by unknown mechanic | Totals load; acceptance 0–100%; filter applied; unknown mechanic gives 0 jobs | As expected (acceptance 75%) | Pass |
-| TC22 | Average repair time valid | FR13 | B | Complete a job, then load dashboard | Duration ≥ 0, in hours | **−7,970 minutes** | **Fail** (D16, D10) |
+| TC21 | Dashboard metrics and mechanic filter | FR11, FR14, FR17 | P | Load dashboard; filter by mechanic1; filter by unknown mechanic | Totals load; acceptance = approved ÷ decided (4 of 5 = 80%); filter applied; unknown mechanic gives 0 jobs | As expected (80%) | Pass |
+| TC22 | Average repair time valid | FR13 | B | Complete a job before its slot, and a past booking (2026-09-05 09:00 NZST); load dashboard and job details | Early finish = 0 h and flagged; past job's duration equals an independent calculation; average in hours | Run 1: **−7,970 min (Fail, D16 + D10)**. Run 2: early = 0 min, flagged; duration 48,108 min = expected 48,108; average 267.3 h | **Pass** (re-test after fix) |
 | TC23 | Completed job details | FR12, AC20 | P | Open a completed job; unknown job ID | Mechanic, notes, duration, checklist + version / 404 | As expected | Pass |
 | TC24 | Checklist template editing | NFR05 | P, N, C | Edit WOF checklist; save again with the old version; invalid items; mechanic reloads; open the old job | New version 2 / 409 / 400 / mechanic gets version 2 straight away / old job still shows version 1 | As expected | Pass |
 | TC25 | WOF and service reminders | FR05, AC07, AC08 | B, P | Vehicle with WOF and service due in 14 days; run the scheduler at 07:59, 08:00 and 09:00 NZ | Nothing at 07:59; WOF + service reminder at 08:00; no duplicates at 09:00 | As expected | Pass |
@@ -122,39 +126,42 @@ The A1 exit criterion was that "85%+ of in-scope requirements have at least one 
 | TC29 | History load time under 20 users | NFR03, AC11 | Performance | 20 concurrent users requesting vehicle history; record times | ≥95% under 2s | — | **Not run** |
 | TC30 | First-time customer books in 3 steps | NFR04 | Usability | New account with no vehicle → book | ≤3 steps | — | **Not run** (expected fail: D12, fix R04) |
 | TC31 | UI click-through per role | All | Usability, system | Manual browser walkthrough as customer, mechanic, manager | All screens and buttons work; messages clear | — | **Not run** |
-| TC32 | Compliance % reflects partial checklists | FR15, FR16, AC18 | P | Close one job with unticked items, one fully ticked | Compliance 50%; incomplete = 1 | — | **Blocked** (R03 not built) |
-| TC33 | Dashboard date range | FR11, FR13–FR16 | B | Jobs inside and outside the range, including boundary dates | Only in-range jobs counted | — | **Blocked** (R01 not built) |
+| TC32 | Compliance % reflects partial checklists | FR10, FR15, FR16, AC18 | P | Close 3 jobs: 2 fully ticked, 1 with 4 of 7 ticked (mechanic confirms) | Incomplete job saved at 57% with exactly those 4 items; compliance 67%; incomplete = 1; avg completion 86%; job details show ✓/✗ per item | As expected | Pass |
+| TC33 | Dashboard date range | FR11, FR13–FR17 | B, N | Default range; today only; tomorrow onwards; up to yesterday; jobs list with a range; start after end; invalid date (2026-02-30); mechanic + range | Default = last 30 days ending today; today's jobs counted only when today is in range; empty ranges show N/A; jobs list follows the range; 400 / 400 with messages; filters combine | As expected | Pass |
+| TC34 | Migration of existing data | FR13, NFR06 (data integrity) | R | Start the new code on a copy of the real DB, and on a DB with old-format timestamps (`2026-09-06 02:30:00`) | Old timestamps converted to UTC ISO; decisions back-dated; old jobs show 100% with all items ticked; dashboard loads | As expected | Pass |
 
-**Summary (2026-10-08):**
+**Summary:**
 
-| Planned | Executed | Passed | Failed | Blocked | Not run |
-|---|---|---|---|---|---|
-| 33 | 28 | 27 | 1 | 2 | 3 |
+| Run | Planned | Executed | Passed | Failed | Blocked | Not run |
+|---|---|---|---|---|---|---|
+| Run 1 (before `b75c42a`) | 33 | 28 | 27 | 1 | 2 | 3 |
+| **Run 2 (after `b75c42a`)** | **34** | **31** | **31** | **0** | **0** | **3** |
 
-**Execution pass rate:** 27 / 28 = **96.4%**.
+**Execution pass rate (run 2):** 31 / 31 = **100%** (run 1: 27 / 28 = 96.4%).
 
-**Failed test:**
-- **TC22**, average repair time negative. Two causes: a job can be completed before its booked slot (D16), and completion time is stored as UTC while the slot is local time (D10).
-- **Corrective action:** R02.
-- **Regression:** re-run TC21–TC23 and TC33 after the fix.
+**Failed test and corrective action:**
+- **TC22** failed in run 1: average repair time was negative. Two causes: a job could be completed before its booked slot (D16), and completion time was stored as UTC while the slot is local time (D10).
+- **Corrective action:** R02 in `b75c42a`, plus the team decision to count early finishes as 0 hours.
+- **Re-test:** passed in run 2.
+- **Regression:** all other run 1 cases re-run in run 2 and passed; TC32 and TC33 were unblocked and passed.
 
 **Defect raised from a passing test:**
 - **TC28**: the login limit also counts successful logins (D17).
 - **Corrective action:** R09.
 
-**Regression plan:** after each remaining feature (R01–R09), re-run all 28 executed cases plus the newly unblocked ones (TC30, TC32, TC33). The automated suite (Task 4) runs on every commit.
+**Regression plan:** after each remaining feature (R04–R09), re-run all 31 executed cases plus TC30 once R04 is built. The automated suite (Task 4) runs on every commit.
 
 **Remaining quality risks:**
-- manager metrics are not yet reliable (FR13–FR16);
-- performance has not been measured;
-- the UI has not been formally walked through.
+- performance has not been measured (TC29);
+- the UI has only been checked by screenshot, not a full manual click-through (TC31);
+- open defects: D12, D13, D14, D17.
 
 **Mapping from A1 test cases:**
 - A1 TC01 → TC01
 - TC02 → TC02
 - TC03 → TC06
 - TC04 → TC20
-- TC05 → TC32
+- TC05 → TC32 (now executed)
 - TC06 → TC13
 - TC07 → TC15
 - TC08 → TC29 (history page instead of booking page, per NFR03)
@@ -184,7 +191,7 @@ The A1 exit criterion was that "85%+ of in-scope requirements have at least one 
 | TC25, TC26 (reminders, retries) | Time-based; automation can fake the clock (08:00, +8h) instead of waiting real hours. |
 | TC11, TC12 (cancellation states) | Many state combinations; a regression would silently corrupt data. |
 | TC18, TC24 (append-only, checklist versions) | Data integrity rules that later changes could quietly break. |
-| TC22, TC33 (metrics, date range) | Exact numbers are tedious to check by hand and broke once already (D10). |
+| TC22, TC32, TC33, TC34 (metrics, date range, migration) | Exact numbers and date boundaries are tedious to check by hand, and they broke once already (D10). TC22's independent duration calculation is a good automated check against timezone regressions. |
 
 **Kept manual / exploratory, and why:**
 - **TC31 UI click-through** and **TC30 usability:** the layout, clarity of messages and number of steps need a human. UI automation (e.g. Playwright) would be slow to build and brittle for a prototype whose UI is still changing.
@@ -240,12 +247,12 @@ Defects that won't be fixed go to **Deferred**, with the justification recorded 
 
 **Register:** `PROJECT_NOTES.md` section 5 (D01–D17).
 
-**Severity distribution (2026-10-08), 17 defects:**
+**Severity distribution (after `b75c42a`), 17 defects:**
 - **Critical:** 0.
-- **High:** 6 (D01, D02, D03, D08, D10, D16).
+- **High:** 6 (D01, D02, D03, D08, D10, D16). **All fixed.**
 - **Medium:** 7 (D04, D05, D07, D09, D11, D13, D17).
 - **Low:** 4 (D06, D12, D14, D15).
-- **Fixed:** 9 (D01–D09). **Open:** 8 (D10–D17; 2 High, 3 Medium, 3 Low).
+- **Fixed:** 13 (D01–D11, D15, D16). **Open:** 4 (D13 and D17 Medium; D12 and D14 Low).
 
 ### RCA 1: D03, WOF reminders checked the wrong day (timezone)
 - **Problem:** reminders were checked for "today + 14 days" using the UTC date. NZ is UTC+12/+13, so every morning the system thought it was still yesterday, and reminders could be missed or sent a day off.
@@ -256,8 +263,8 @@ Defects that won't be fixed go to **Deferred**, with the justification recorded 
   4. Why wasn't it noticed? It was only ever tested in the afternoon, when the UTC and NZ dates match. There was no test with a fixed clock.
   5. Why? The AI-generated code assumed server time = business time, and the review didn't question timezone handling.
 - **Root cause:** an implicit timezone assumption, and no time-controlled tests.
-- **Corrective action:** compute dates in the workshop's timezone (`Intl.DateTimeFormat`, `Pacific/Auckland`), and test at 07:59, 08:00 and with dates around midnight UTC.
-- **Prevention:** a project rule that all business dates use the workshop timezone, with automated tests using a fixed clock. The same root cause shows up again in **D10** (UTC completion vs local slot time), so this is a recurring pattern to check for in review.
+- **Corrective action:** compute dates in the workshop's timezone (`Intl.DateTimeFormat`, `Pacific/Auckland`), and test at 07:59, 08:00 and with dates around midnight UTC. When the same root cause showed up again in D10, all time conversions were moved into one shared helper (`services/workshopTime.js`) used by reminders, the dashboard and validation.
+- **Prevention:** a project rule that all business dates use the workshop timezone, with automated tests using a fixed clock. The same root cause showed up again in **D10** (UTC completion vs local slot time). That fix now has a regression check (TC22) comparing against an independently calculated duration.
 
 ### RCA 2: D01, cancelled bookings were permanently deleted
 - **Problem:** cancelling removed the booking row, losing the audit trail and skewing the acceptance and compliance metrics.
@@ -330,7 +337,7 @@ Defects that won't be fixed go to **Deferred**, with the justification recorded 
 
 | Member | Commits (non-merge) | Lines (+/−)* | Main areas (from commit history) |
 |---|---|---|---|
-| Daniel (Daniel-Massey1) | 22 | +4,000 / −285 | Original customer booking portal and DB backend; booking validation; accounts and own-vehicle access; persistent login; history access fix; cancellation as status and decision notifications (email outbox); WOF/service reminders rework; manager checklist template editor (versioning); README; project notes |
+| Daniel (Daniel-Massey1) | 24 | +4,722 / −446 | Original customer booking portal and DB backend; booking validation; accounts and own-vehicle access; persistent login; history access fix; cancellation as status and decision notifications (email outbox); WOF/service reminders rework; manager checklist template editor (versioning); manager dashboard date range, real checklist compliance and repair time fix; README; project notes; report draft |
 | Sam | 14 | +5,023 / −385 | Mechanic portal (approvals, diagnostic entry form, dynamic checklists); append-only vehicle history with previous-entry dropdown; login with role verification; landing page; sign-up and manager-created mechanic accounts; time-slot booking; add vehicle; customer portal and styling; inclusive 24h cancellation rule + unit tests |
 | Patrick (patrick-setu) | 6 | +485 / −9 | Manager dashboard (backend route and frontend); mechanic decision tracking column (`decided_by`) for dashboard metrics; mechanic route update for DB changes; WOF reminder service in the server |
 

@@ -2,7 +2,7 @@
 
 > **Purpose:** a single reference for finishing Assessment 2. It records what is built, which requirements are met, the requirement changes to make, the defects found, and what is left.
 > **Readers:** the team, and any AI assistant given this file as context.
-> **Last updated:** 2026-10-08 (after commit `bc4b508`; requirement wording updated by the team, see section 3).
+> **Last updated:** 2026-10-08 (after commit `b75c42a`, the manager dashboard bundle; requirement wording updated by the team, see section 3).
 > **Status legend:** ✅ done · ⚠️ partial · ❌ missing · ❓ needs testing · 📝 requirement wording was changed (see section 3)
 
 ---
@@ -30,6 +30,7 @@
 | Email outbox and retries | `backend/services/notifications.js` |
 | WOF and service reminders (scheduler) | `backend/services/reminders.js` |
 | Versioned checklist templates and shared service types | `backend/services/checklists.js` |
+| Workshop timezone helper (NZ local time and UTC conversions, date validation) | `backend/services/workshopTime.js` |
 | Frontend | `frontend/index.html`, `frontend/app.js`, `frontend/style.css` |
 
 ---
@@ -54,19 +55,19 @@
 | FR07 | "Approve"/"Deny" sets status `confirmed`/`denied` and notifies the customer within 5 minutes | ✅ 📝 | Fixed in `7dfd6c8`. The email is sent immediately and the outcome shows on the customer's booking card. Wording updated (C02). |
 | FR08 | Diagnostic entry (vehicle ID, fault, severity, status) stored as a new entry on the right vehicle | ✅ | `POST /api/mechanics/diagnostics`. Unknown vehicle returns 404 "Vehicle not found". |
 | FR09 | Checklist for the service type, from a configurable table | ✅ | Loads the latest version from `checklists`. Managers can edit it since `1a5f413`. |
-| FR10 | All items ticked: job marked "checklist compliant" and recorded | ✅ | Jobs are saved with `checklist_compliant = 1`, status `Checklist Compliant`. **But** a job cannot be saved unless all items are ticked, so FR15 is always 100% (see R03). |
+| FR10 | All items ticked: job marked "checklist compliant" and recorded | ✅ | All ticked: `checklist_compliant = 1`, status `Checklist Compliant`. Since `b75c42a` a mechanic can also close a job with items unticked (after confirming): saved as `Checklist Incomplete` with the ticked items and completion % (AC18). |
 
 ### Functional: manager
 
 | ID | Requirement (short) | Status | Notes / evidence |
 |---|---|---|---|
-| FR11 | Total completed jobs **for a date range** | ⚠️ | The count works; **there is no date range filter** (R01). Date range now defined in the requirements (C06). |
+| FR11 | Total completed jobs **for a date range** | ✅ | From/to filter, default last 30 days, on job completion date (C06). `b75c42a`. |
 | FR12 | Selecting a completed job shows mechanic, details, duration, checklist | ✅ | The job details pop-up now also shows the checklist **version** the job used. |
-| FR13 | Average repair time **in hours** for a date range | ⚠️ | Shown in minutes, has no date range, and has a **timezone bug** (D10). Fix in R02. |
-| FR14 | Acceptance % = approved / total for a date range | ⚠️ | The formula works; no date range. |
-| FR15 | Checklist compliance % = compliant / completed for a date range | ⚠️ | Always 100% by design (R03); no date range. |
-| FR16 | Number of incomplete checklists for a date range | ⚠️ | Currently counts *confirmed bookings not yet completed*, not incomplete checklists (R03); no date range. |
-| FR17 | Filter metrics by mechanic | ✅ ⚠️ | Works. The incomplete count filters on who **approved** the booking (`decided_by`), because jobs are not assigned to mechanics (D15). |
+| FR13 | Average repair time **in hours** for a date range | ✅ | Booked slot to completion, in hours. Timezone bug fixed (D10); early finishes count as 0 (D16, team decision). `b75c42a`. |
+| FR14 | Acceptance % = approved / total for a date range | ✅ | Filtered by **booking decision date** (new `decided_at` column), as recorded in C06. `b75c42a`. |
+| FR15 | Checklist compliance % = compliant / completed for a date range | ✅ | Now meaningful: incomplete jobs count against it (D11 fixed). `b75c42a`. |
+| FR16 | Number of incomplete checklists for a date range | ✅ | Counts completed jobs closed with unticked items (C11). `b75c42a`. |
+| FR17 | Filter metrics by mechanic | ✅ | Job metrics filter on the mechanic who completed the job; acceptance filters on the mechanic who decided (D15 fixed). Combines with the date range. |
 
 ### Non-functional
 
@@ -100,9 +101,9 @@
 | AC15 Entry for a vehicle ID that doesn't exist is rejected with a message | ✅ 📝 | 404 "Vehicle not found" (C03). |
 | AC16 Entries never overwritten; edits stored as new references | ✅ | |
 | AC17 Starting a job loads the matching checklist | ✅ | |
-| AC18 Closing a checklist stores its **percentage** linked to the mechanic | ❌ | Only 100%-complete checklists can be saved; no % stored (R03). |
-| AC19 Manager sees checklist completion and average time per mechanic | ⚠️ | Mechanic filter works; the time and compliance figures have the problems above. |
-| AC20 Selecting a job shows mechanic, details, checklist completion | ✅ | |
+| AC18 Closing a checklist stores its **percentage** linked to the mechanic | ✅ | `completion_percent` and ticked items stored on the job with the mechanic's name; shown on the dashboard (Avg Checklist Completion card) and in job details. `b75c42a`. |
+| AC19 Manager sees checklist completion and average time per mechanic | ✅ | Mechanic filter + compliance %, avg checklist completion % and average repair time (hours). |
+| AC20 Selecting a job shows mechanic, details, checklist completion | ✅ | Shows ✓/✗ for each item, the completion %, the checklist version and the duration. |
 | AC21 User only accesses records for their own cars | ✅ | Server-side checks on every customer route. |
 | AC22 Manager/mechanic can access any repair record | ✅ | |
 
@@ -120,12 +121,12 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | C03 | AC14, AC15 | Entries linked by **number plate**; unknown plate rejected | Entry linked to the vehicle the mechanic **selected** (vehicle ID); unknown vehicle ID rejected | Matches FR08, which already says "vehicle ID". Choosing from a list stops wrong links in the first place. | ✅ Applied |
 | C04 | A1 maintainability attribute | Template changes apply "immediately to **all jobs**" | "...to all **new** jobs" | Changing completed jobs would rewrite history and break the data integrity attribute and AC20. Matches NFR05. | 📄 Write-up (A1 quality attributes) |
 | C05 | FR13 | Average repair time (no start point) | Average time from **booked slot to completion**, in hours | There is no "start job" step; the booked slot is the agreed start time. | ✅ Applied |
-| C06 | Manager side (FR11–FR16) | "Selected date range" undefined | Defined once: from/to date on the **job completion date**, defaulting to the last 30 days | Makes the date-range requirements testable. **Note:** FR14 counts booking requests (no completion date), so R01 will filter FR14 by the **booking decision date**. Record this in the RTM. | ✅ Applied |
+| C06 | Manager side (FR11–FR16) | "Selected date range" undefined | Defined once: from/to date on the **job completion date**, defaulting to the last 30 days | Makes the date-range requirements testable. **Note:** FR14 counts booking requests (no completion date), so it is filtered by the **booking decision date**. Record this in the RTM. | ✅ Applied and built (`b75c42a`) |
 | C07 | FR03, AC05, AC06 | Within 24h refused; "24 hours **or more**" can cancel | Within 24h (**inclusive**) refused; **more than** 24h can cancel | Removes the overlap between AC05 and AC06 at exactly 24h. Code: Sam (`f39226d`). | ✅ Applied |
 | C08 | FR04, AC06 | Booking "removed"; "notify **the mechanic**" | Status becomes `cancelled`; removed from upcoming bookings and the mechanic's schedule; the **workshop** is emailed | "Removed" caused the hard-delete defect (D01). No mechanic is assigned at booking time. | ✅ Applied |
 | C09 | A1 scope | "Real accounts / sign up" and "proper security" out of scope; mock login planned | **Built:** sign-up, hashed passwords, signed expiring tokens, rate limiting, managers creating mechanics | Mock login made NFR01 meaningless (any request could claim to be any user). | 📄 Write-up (Task 1 scope changes) |
 | C10 | A1 plan: "final working email system" | Real email delivery | **Stays mocked** through the outbox | Real email is out of scope in A1. The outbox records every message, attempt and failure, so it is testable without a provider. | 📄 Write-up (Task 1 scope changes) |
-| C11 | FR16, AC18 | "Jobs with incomplete checklists" / "percentage is stored" | Kept as written; to be met by building R03 (jobs can be closed with unticked items) | Without R03, FR15 is always 100% and FR16 has nothing real to count. | ⏳ Pending R03 |
+| C11 | FR16, AC18 | "Jobs with incomplete checklists" / "percentage is stored" | Kept as written; met by R03 (jobs can be closed with unticked items) | Without R03, FR15 is always 100% and FR16 has nothing real to count. | ✅ Met (`b75c42a`) |
 | — | FR05 | — | **Kept as written** (team decision) | Implementation already runs at 8:00am NZ time and sends within 30 minutes. AC07 covers service reminders. | ✅ No change |
 | — | AC04 | "inform the customer the timeslot is created" | "...is already taken" | Typo fix. | ✅ Applied |
 | — | (A1 limitations) | "Not yet added: login saves when reloading page" | Line removed | It is implemented: the session is saved and re-checked with `/api/auth/session`. | ✅ Applied |
@@ -137,7 +138,7 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 - AC05 ("within 24 hours") and AC06 ("24 hours or more") overlap at exactly 24h (resolved by C07).
 - FR04 says notify "the mechanic", but no mechanic is assigned at booking time (resolved by C08).
 - A1 "Current limitations" listed persistent login as not added; it **is** implemented (session stored and re-checked with `/api/auth/session`).
-- FR10 allows only fully ticked jobs to be "compliant", while AC18 expects a stored **percentage**, so partial checklists must exist (R03).
+- FR10 allows only fully ticked jobs to be "compliant", while AC18 expects a stored **percentage**, so partial checklists must exist (resolved by R03: compliant = all ticked; otherwise "Checklist Incomplete" with its %).
 
 ---
 
@@ -145,15 +146,20 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 
 | # | Item | Reqs | Size | Notes |
 |---|---|---|---|---|
-| R01 | Date-range filter on the manager dashboard (from/to, default last 30 days) for all metrics and the jobs list | FR11, FR13–FR16 | Medium | Use C06's definition; FR14 filters by booking decision date. |
-| R02 | Fix average repair time: hours, same timezone for both timestamps, and no completing before the booked slot | FR13, AC19 | Small | Fixes D10 and D16. Store `completed_at` the same way as `slot_start`, or convert both before subtracting. |
-| R03 | Mechanics can close a job with unticked items: status "Checklist Incomplete", completion % and ticked items stored | FR10, FR15, FR16, AC18 | Medium | Store the ticked items per job so job details show what was actually ticked, not the full template. |
 | R04 | Add a vehicle inside booking step 1 so a first-time customer still books in 3 steps | NFR04 | Small | Frontend only; reuse the add-vehicle form and `POST /api/vehicles`. |
 | R05 | Plate search box for mechanic/manager vehicle history | AC10 | Small | Frontend only; filter the already-loaded vehicle list. |
 | R06 | Consistent error handling (frontend `fetch` without try/catch, some routes with no DB error handling) | A1 limitations | Small–Medium | E.g. `loadHistory`, `loadHistoryVehicleOptions`, `decideBooking`. |
 | R07 | Optional: SQLite trigger blocking UPDATE/DELETE on `diagnostic_entries`; record which mechanic made each entry | NFR06, AC16 | Small | Moves the integrity rule from the app into the database. |
 | R08 | Optional: index on `diagnostic_entries(vehicle_id)` before performance testing | NFR03 | Tiny | |
 | R09 | Login rate limit should count only failed attempts | NFR01 | Tiny | Fixes D17; do this before the demo. |
+
+### Done
+
+| # | Item | Reqs | Commit |
+|---|---|---|---|
+| R01 | Date-range filter on the manager dashboard (from/to, default last 30 days) for all metrics and the jobs list | FR11, FR13–FR16 | `b75c42a` |
+| R02 | Average repair time in hours, both timestamps compared in NZ time, early finishes count as 0 | FR13, AC19 | `b75c42a` |
+| R03 | Jobs can be closed with unticked items: "Checklist Incomplete", completion % and ticked items stored | FR10, FR15, FR16, AC18 | `b75c42a` |
 
 ### Non-feature work still to do (later tasks)
 
@@ -183,13 +189,13 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | D07 | Mechanic checklist lookup returned the **first** row for a service type (it would return the oldest version once versions existed) | Medium (latent) | Query had no ordering or version | `getLatestChecklist()` orders by version. **Fixed.** | `1a5f413` |
 | D08 | Editing a checklist template would have **changed the checklist shown on completed jobs** | High (design) | Jobs pointed to a template that could be edited in place | Templates are versioned; jobs keep their `checklist_id`. **Fixed.** | `1a5f413` |
 | D09 | Cancelling at **exactly 24h** was allowed, contradicting AC05 | Medium | `< 24` comparison; AC05/AC06 overlap at the boundary | Inclusive check `<= 24h`; boundary unit tests added. **Fixed (Sam).** | `f39226d` |
-| D10 | Average repair time is **wrong or negative** | High | `completed_at` is stored as UTC (`datetime('now')`) while `slot_start` is local time, so durations are off by 12–13h | **Open.** R02. | |
-| D11 | Checklist compliance is **always 100%**; FR15/FR16 don't measure anything | Medium | Jobs can only be saved when every item is ticked | **Open.** R03. | |
+| D10 | Average repair time is **wrong or negative** | High | `completed_at` is stored as UTC (`datetime('now')`) while `slot_start` is local time, so durations are off by 12–13h | `completed_at` stored as UTC ISO; `slot_start` converted from NZ time by `workshopTime.js` before subtracting; old rows migrated. **Fixed.** Verified against an independently calculated duration (exact to the minute). | `b75c42a` |
+| D11 | Checklist compliance is **always 100%**; FR15/FR16 don't measure anything | Medium | Jobs can only be saved when every item is ticked | Jobs can be closed incomplete; compliance, incomplete count and avg completion use stored results. **Fixed.** | `b75c42a` |
 | D12 | A first-time customer cannot book in 3 steps (no vehicle yet) | Low | Adding a vehicle is on a separate page | **Open.** R04. | |
 | D13 | Some frontend screens break or hang when a request fails | Medium | `fetch` calls with no try/catch or `res.ok` check (AI-generated code assumed success) | **Open.** R06. | |
 | D14 | Auth tests run against the real `portal.db` | Low | Tests don't set `DB_PATH` | **Open.** Point at a temporary DB as `reminders.test.js` does. | |
-| D15 | Mechanic filter on "incomplete" uses the **approver**, not the mechanic doing the work | Low | Jobs are not assigned to mechanics; `decided_by` used as a stand-in | **Open / document.** | |
-| D16 | A mechanic can complete a job **before its booked slot**, giving a **negative** repair duration (seen: −7,970 min for a job completed 5 days early) | High | No check that the slot has started before a checklist is saved. FR13 measures from the booked slot, so finishing early always gives a negative time. Combined with D10, which added about 13h of the error | **Open.** Block completing before the slot starts, or count early finishes as zero. Fix with R02. | |
+| D15 | Mechanic filter on "incomplete" uses the **approver**, not the mechanic doing the work | Low | Jobs are not assigned to mechanics; `decided_by` used as a stand-in | The incomplete count now comes from completed jobs, filtered by the mechanic who completed them. **Fixed.** | `b75c42a` |
+| D16 | A mechanic can complete a job **before its booked slot**, giving a **negative** repair duration (seen: −7,970 min for a job completed 5 days early) | High | No check that the slot has started before a checklist is saved. FR13 measures from the booked slot, so finishing early always gives a negative time. Combined with D10, which added about 13h of the error | **Team decision:** early finishes are allowed and count as 0 hours; job details flag "completed before the booked time". **Fixed.** | `b75c42a` |
 | D17 | Login rate limit counts **successful** logins as well as failed ones, so switching roles about 10 times in 15 min locks you out (429) | Medium (demo risk) | `loginLimiter` (10 requests per 15 min per IP) counts every request to `/api/auth/login` | **Open.** Count only failed attempts, or raise the limit for local use. Restarting the server clears it. | |
 
 **Good candidates for the 3 root cause analyses:** D03 (timezone), D01 (literal requirement, then data loss), D08 (template edits rewriting history). D10 is another timezone defect with the same root cause as D03, which makes a strong "lesson learned and prevention" point: store and compare all timestamps the same way.
@@ -219,6 +225,27 @@ The whole system was exercised over HTTP against a fresh throwaway database with
 - **Observed:** after 6 successful logins, a 429 came back on the 5th wrong password. This confirms D17.
 - **Not covered:** clicking through the UI in a browser (layout, buttons). Do a manual click-through as each role before the demo.
 
+### Re-run after the manager dashboard bundle (`b75c42a`)
+
+- **Result: 118 of 118 checks passed.** That is the 98 original checks (updated for the new behaviour) plus 20 new ones; no errors in the server log. Unit tests: 10 of 10.
+- **New checks:**
+  - partial checklist saved as "Checklist Incomplete" at 57% (4 of 7);
+  - ticked items stored exactly; items not on the checklist rejected;
+  - early finish gives 0 minutes and is flagged;
+  - repair duration matches an independent calculation to the minute (D10 fix);
+  - exact card values: 3 jobs, 1 incomplete, compliance 67%, avg completion 86%, acceptance 80%, average hours;
+  - date range: default last 30 days; today-only includes today; tomorrow onwards and up to yesterday exclude today;
+  - jobs list follows the range; start after end and invalid dates rejected; mechanic filter combined with dates.
+- **Migration:** run on a copy of the real `portal.db` and on a database with old-format timestamps. Both converted correctly; legacy jobs show 100% with all items ticked. The timezone helper is correct across the NZ daylight-saving change.
+- **UI checked by screenshot (headless Edge):**
+  - manager dashboard on desktop and mobile;
+  - invalid-range error;
+  - job details with ✓/✗ items;
+  - mechanic checklist.
+
+  Three layout issues were found and fixed before commit: stale card values after an invalid range, "(not done)" wrapping, and uneven mobile filter widths.
+- **Not tested:** the "Close as Checklist Incomplete?" confirm pop-up (a browser dialog); click it once in the real app.
+
 ---
 
 ## 6. Design decisions (what to say if asked)
@@ -229,12 +256,16 @@ The whole system was exercised over HTTP against a fresh throwaway database with
 - **Cancellation** is a status change, never a delete, so records stay for auditing and metrics.
 - **Double booking** is blocked by DB unique indexes, not just an app check, so it holds when requests arrive at the same moment.
 - **Diagnostics** are append-only (`supersedes_entry_id`), as with checklists.
+- **Time handling:** booking slots are stored as NZ local time; event timestamps (`completed_at`, `decided_at`, `cancelled_at`, outbox times) are UTC ISO strings. `workshopTime.js` converts between them, so they are never compared directly (lesson from D03 and D10).
+- **Early finishes** count as 0 hours of repair time, not negative (team decision for D16), and are flagged in job details.
+- **Incomplete checklists:** mechanics confirm before closing a job with unticked items. The job keeps exactly which items were ticked, so job details show the truth, not the full template.
+- **Dashboard date range** defaults to the last 30 days. Job metrics use the completion date; acceptance rate uses the decision date.
 
 ---
 
 ## 7. Testing notes
 
-- **Current automated tests (10, all passing):**
+- **Current automated tests (10, all passing after `b75c42a`):**
   - `backend/auth.test.js`: 5 tests (auth and access).
   - `backend/security.test.js`: 2 tests (password hashing, rate limiting).
   - `backend/routes/bookings.test.js`: 3 tests (24h boundary, Sam).
@@ -265,7 +296,8 @@ Issues found in AI-generated code during this phase, and how they were caught:
 - **Timezone assumptions**: `toISOString()` for "today" (D03), and the UTC/local mismatch in durations (D10).
 - **Missing failure handling**: retries with no delay (D05), `fetch` assuming success (D13).
 - **Latent bugs that only appear as features grow**: the checklist lookup returning the first row (D07).
-- **Unfinished or outdated comments**, e.g. the `GET /api/manager/dashboard` doc comment in `manager.js` lists "Summary cards:" followed by empty bullets, and the `db.js` header still calls `checklists`/`jobs` "stub tables".
+- **Unfinished or outdated comments**, e.g. the `GET /api/manager/dashboard` doc comment in `manager.js` listed "Summary cards:" followed by empty bullets (rewritten in `b75c42a`), and the `db.js` header still calls `checklists`/`jobs` "stub tables".
+- **Visual issues only seen in the browser:** after the dashboard bundle, screenshots showed stale card values on an error, awkward text wrapping and uneven mobile widths. The API tests had all passed, which shows why UI checks are still needed alongside automated tests.
 - **How outputs were reviewed:**
   - read every diff before committing;
   - split one large AI change into two focused commits (cancellation + decisions, then reminders);
@@ -282,13 +314,18 @@ Issues found in AI-generated code during this phase, and how they were caught:
 | `1b4d47b` | Daniel | Service reminders; WOF reminder fixes (8am NZ, no duplicates, retries over 24h); README |
 | `f39226d` | Sam | 24h cancellation boundary made inclusive, with unit tests |
 | `1a5f413` | Daniel | Manager checklist template editor with versioning and validation |
+| `f58d3d8`, `8ba9617` | Daniel | Project notes (requirement status, changes, defect register) |
+| `a470349` | Daniel | README update (roles, features, tests, project structure) |
+| `8c002e5` | Daniel | Report draft (RTM, test cases, automation plan, RCA, quality testing plan) |
+| `b75c42a` | Daniel | Manager dashboard: date range, real checklist compliance, repair time fix (R01–R03; D10, D11, D15, D16) |
 
 ---
 
 ## 10. Residual risks (for the release decision in Task 8)
 
-- Manager metrics are unreliable until R01–R03 and D10 are fixed. This is the biggest risk to the "quality dashboard" goal.
+- Manager metrics were the biggest risk; R01–R03 and D10/D11/D16 are now fixed and verified. Remaining dashboard limitation: jobs aren't assigned to mechanics before completion, so per-mechanic acceptance uses whoever approved the booking.
+- **Open defects:** D12 (first-time customer 3 steps), D13 (frontend error handling), D14 (auth tests use the real DB), D17 (login limit counts successful logins; demo risk).
 - Email is mocked, so delivery to real inboxes is unverified.
 - The rate limiter and scheduler run inside a single process, so they would not work correctly across multiple servers.
 - Performance (NFR03) has not been measured.
-- Only a few automated tests cover routes; most behaviour has been checked by hand only.
+- Only a few automated tests cover routes; most behaviour has been checked by throwaway scripts and screenshots, not a committed test suite.
