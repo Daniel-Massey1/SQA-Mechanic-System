@@ -10,12 +10,12 @@ npm install
 npm start
 ```
 
-The server starts at `http://localhost:3001`. Open that address in a browser to use the customer portal.
+The server starts at `http://localhost:3001`. Open that address in a browser and log in with one of the demo accounts below.
 
 To stop the server, press `Ctrl+C` in the terminal.
 
 ## Demo Accounts
-The prototype includes four fixed demo accounts:
+The prototype includes four demo accounts (customers can also sign up, and managers can create or remove accounts):
 
 - `customer1` / `123`
 - `customer2` / `123`
@@ -28,11 +28,14 @@ For a fresh production database, configure `AUTH_SECRET`, `INITIAL_MANAGER_USERN
 
 Login and sign-up requests are throttled per client IP. The current limiter is process-local, so a multi-worker production deployment should use a shared rate-limit store.
 
-Run backend security tests with:
+## Running the tests
 
 ```powershell
-node --test backend/*.test.js
+cd backend
+node --test
 ```
+
+This runs every `*.test.js` file under `backend/` (authentication, access control, password hashing, rate limiting and booking cancellation rules).
 
 
 ## Email notifications (mocked)
@@ -44,7 +47,9 @@ No real email is sent. Every notification is written to the `notifications` outb
 - **WOF and service reminders** - at 8:00am workshop time (`WORKSHOP_TIMEZONE`, default `Pacific/Auckland`) each day, vehicles whose WOF expiry or service due date is exactly 14 days away are queued a reminder. Each reminder is only ever queued once per vehicle and due date, so restarting the server does not send duplicates.
 - **Retries** - a failed send is retried every 8 hours, up to 3 retries (24 hours), then marked `failed`. Set `MOCK_EMAIL_FAILURE_RATE` (0 to 1) to demonstrate this.
 
-### Recommended: DB Browser for SQLite
+## Viewing the database
+
+Recommended: DB Browser for SQLite
 
 1. Stop the backend if it is running, or open the database in read-only mode.
 2. Install and open [DB Browser for SQLite](https://sqlitebrowser.org/).
@@ -57,23 +62,41 @@ No real email is sent. Every notification is written to the `notifications` outb
 
 ## About the project
 
-The SQA Mechanic System is a customer booking portal prototype for an automotive workshop. It provides a simple interface for customers to select a vehicle, choose a service, book an available time, view existing bookings, cancel eligible bookings, and review vehicle history.
+The SQA Mechanic System is a workshop portal prototype for an automotive workshop, with three roles:
+
+- **Customers** book services, manage their vehicles, cancel eligible bookings and view vehicle history.
+- **Mechanics** approve or deny booking requests, complete service checklists and record diagnostic entries.
+- **Managers** review workshop quality metrics, manage checklist templates and manage accounts.
 
 The application is split into a static frontend and a Node.js backend. The backend uses Express for the API and SQLite for local data storage. Sample data is created automatically when the application is started for the first time.
 
 ## Main features
 
-- Customer service booking workflow
-- Vehicle selection and service type selection
-- Booking confirmation and booking list
-- Booking cancellation for eligible bookings (kept as a cancelled record for auditing)
-- Mocked email notifications for booking decisions and cancellations
+**Customer**
+- Three-step booking: vehicle, service and time slot, confirm. Taken slots are rejected.
+- Booking list with upcoming and past bookings, plus approval, decline and cancellation notices
+- Cancellation more than 24 hours ahead (kept as a cancelled record for auditing)
+- My Vehicles: add vehicles with WOF expiry and next service due dates
 - WOF and service due reminders 14 days ahead, with retries
-- Vehicle service and diagnostic history
+- Vehicle history: fixes and issues flagged for the next visit, newest first
 - Customer self-registration
-- Manager controls for creating mechanics and removing customer/mechanic sign-in access
-- Manager checklist template editor: edits are saved as new versions, new jobs use the latest version, and completed jobs keep the version they were done with
-- SQLite database for local development
+
+**Mechanic**
+- Approve or deny pending booking requests (the customer is notified)
+- Service checklists loaded for the booking's service type; jobs are saved as checklist compliant
+- Diagnostic entries, append-only: edits are stored as new entries linked to the original
+- Vehicle history for every vehicle
+
+**Manager**
+- Quality dashboard: completed jobs, incomplete checklists, average repair time, acceptance rate and checklist compliance, filterable by mechanic
+- Completed job details: mechanic, repair details, duration and checklist version used
+- Service checklist editor: edits are saved as new versions, new jobs use the latest version, and completed jobs keep the version they were done with
+- People & access: create mechanic accounts and remove customer or mechanic sign-in access
+
+**Platform**
+- Role-based access checked by the backend on every request, with denied attempts logged
+- Mocked email notifications through a retrying outbox (see above)
+- SQLite database for local development, created and seeded automatically
 - Basic health-check endpoint for the backend
 
 ## Requirements
@@ -85,13 +108,22 @@ The application is split into a static frontend and a Node.js backend. The backe
 ## Using the application
 
 1. Start the backend using the Quick start commands above.
-2. Open `http://localhost:3001` in a browser.
-3. Use **Book a Service** to select a vehicle, service, and time slot.
-4. Use **My Bookings** to view or cancel bookings.
-5. Use **Vehicle History** to view the selected vehicle's previous records.
-6. Use **Sign up** on the public landing page to create a customer account.
-7. Managers can use **People & access** to add mechanics or remove a customer's or mechanic's sign-in account.
-8. Managers can use **Service checklists** to edit the checklist for each service type and view previous versions.
+2. Open `http://localhost:3001` in a browser and **Log in** with a demo account, or **Sign up** as a new customer.
+
+**As a customer**
+- **My Vehicles**: add a vehicle, with its WOF expiry and next service date.
+- **Book a Service**: select a vehicle, service and time slot, then confirm. The booking stays pending until a mechanic approves it.
+- **My Bookings**: view upcoming and past bookings, or cancel one more than 24 hours ahead.
+- **Vehicle History**: view the selected vehicle's previous records.
+
+**As a mechanic**
+- **Mechanic Portal**: approve or deny requests, complete the service checklist for a confirmed booking, and add diagnostic entries.
+- **Vehicle History**: view and edit diagnostic entries for any vehicle.
+
+**As a manager**
+- **Manager Dashboard**: view quality metrics, filter by mechanic, and select a completed job for its details.
+- **People & access**: add mechanics or remove a customer's or mechanic's sign-in account.
+- **Service checklists**: edit the checklist for each service type and view previous versions.
 
 Deleting an account removes its ability to sign in, but preserves customer profiles, vehicles, and service history for recordkeeping. The prototype does not include email verification or password recovery, so use non-sensitive demo credentials.
 
@@ -99,14 +131,21 @@ Deleting an account removes its ability to sign in, but preserves customer profi
 
 ```text
 backend/
-	db/db.js          Database connection and setup
-	routes/           Vehicle and booking API routes
+	db/db.js          Database schema, migrations and seed data
+	routes/           API routes: auth, bookings, vehicles, mechanics, manager
+	services/         Notifications outbox, WOF/service reminders, checklist versions
+	auth.js           Token signing, role checks and denied-access logging
+	passwords.js      Password hashing
+	rateLimit.js      Login and sign-up throttling
+	*.test.js         Automated tests (also routes/*.test.js)
 	server.js         Express server and static file host
 	package.json      Backend scripts and dependencies
 frontend/
-	index.html        Customer portal page
+	index.html        Portal page (customer, mechanic and manager views)
 	app.js            Frontend behavior and API requests
 	style.css         Portal styling
+docs/
+	PROJECT_NOTES.md  Assessment notes: requirement status, changes, defects, remaining work
 ```
 
 ## Troubleshooting
