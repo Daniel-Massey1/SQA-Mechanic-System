@@ -36,6 +36,22 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Unknown API addresses get JSON, not the static file server's HTML 404.
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found.' });
+});
+
+// Any error a route throws (e.g. a database failure) is logged and returned as JSON,
+// so the frontend can show a message instead of failing to read an HTML error page (D13).
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'The request body is not valid JSON.' });
+  }
+  console.error(`[ERROR] ${req.method} ${req.originalUrl}:`, err);
+  return res.status(500).json({ error: 'Something went wrong on the server. Please try again.' });
+});
+
 app.listen(PORT, () => {
   console.log(`Mechanics Portal backend running at http://localhost:${PORT}`);
 });

@@ -2,7 +2,7 @@
 
 > **Purpose:** a single reference for finishing Assessment 2. It records what is built, which requirements are met, the requirement changes to make, the defects found, and what is left.
 > **Readers:** the team, and any AI assistant given this file as context.
-> **Last updated:** 2026-10-11 (after R05 plate search; **all 23 requirements now implemented**; previous: `ddc4319` adding a vehicle within booking (R04), `customer3` demo account, form placeholders).
+> **Last updated:** 2026-10-11 (after R06 error handling (D13); **all 23 requirements implemented** since R05 `0668ce8`).
 > **Status legend:** ✅ done · ⚠️ partial · ❌ missing · ❓ needs testing · 📝 requirement wording was changed (see section 3)
 
 ---
@@ -147,7 +147,6 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 
 | # | Item | Reqs | Size | Notes |
 |---|---|---|---|---|
-| R06 | Consistent error handling (frontend `fetch` without try/catch, some routes with no DB error handling) | A1 limitations | Small–Medium | E.g. `loadHistory`, `loadHistoryVehicleOptions`, `decideBooking`. |
 | R07 | Optional: SQLite trigger blocking UPDATE/DELETE on `diagnostic_entries`; record which mechanic made each entry | NFR06, AC16 | Small | Moves the integrity rule from the app into the database. |
 | R08 | Optional: index on `diagnostic_entries(vehicle_id)` before performance testing | NFR03 | Tiny | |
 
@@ -160,7 +159,8 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | R03 | Jobs can be closed with unticked items: "Checklist Incomplete", completion % and ticked items stored | FR10, FR15, FR16, AC18 | `b75c42a` |
 | R09 | Login rate limit counts only failed attempts (fixes D17), plus fixes for D18 and D19 | NFR01, FR14 | `4a5d79c` |
 | R04 | Add a vehicle inside booking step 1 so a first-time customer still books in 3 steps (fixes D12); shared add-vehicle code for both forms; example placeholders (e.g. ABC123) in the vehicle fields | NFR04 | `ddc4319` |
-| R05 | Number plate search in Vehicle History for mechanics and managers | AC10 | R05 commit (pending) |
+| R05 | Number plate search in Vehicle History for mechanics and managers | AC10 | `0668ce8` |
+| R06 | Error handling: JSON error handler and JSON 404 on the server; the 5 unprotected frontend requests now show a message; Approve/Deny disabled while saving | A1 limitations, D13 | R06 commit (pending) |
 
 ### Non-feature work still to do (later tasks)
 
@@ -193,7 +193,7 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | D10 | Average repair time is **wrong or negative** | High | `completed_at` is stored as UTC (`datetime('now')`) while `slot_start` is local time, so durations are off by 12–13h | `completed_at` stored as UTC ISO; `slot_start` converted from NZ time by `workshopTime.js` before subtracting; old rows migrated. **Fixed.** Verified against an independently calculated duration (exact to the minute). | `b75c42a` |
 | D11 | Checklist compliance is **always 100%**; FR15/FR16 don't measure anything | Medium | Jobs can only be saved when every item is ticked | Jobs can be closed incomplete; compliance, incomplete count and avg completion use stored results. **Fixed.** | `b75c42a` |
 | D12 | A first-time customer cannot book in 3 steps (no vehicle yet) | Low | Adding a vehicle is on a separate page | Vehicle can be added inside step 1, which then continues to step 2 with it selected. Verified in a headless browser as `customer3`: vehicle added, then booking completed in 3 steps (18/18 checks). **Fixed.** | `ddc4319` |
-| D13 | Some frontend screens break or hang when a request fails | Medium | `fetch` calls with no try/catch or `res.ok` check (AI-generated code assumed success) | **Open.** R06. | |
+| D13 | Some frontend screens break or hang when a request fails | Medium | `fetch` calls with no try/catch or `res.ok` check (AI-generated code assumed success); no JSON error handler on the server, so a thrown DB error returned Express's HTML page, which the frontend failed to read as JSON | Server: JSON error handler (logs `[ERROR] method path`), JSON 404 for unknown `/api` routes, JSON 400 for malformed bodies. Frontend: `loadVehicleOptions`, `cancelBooking`, `decideBooking`, `loadHistoryVehicleOptions` and `loadHistory` show a message instead of hanging; Approve/Deny disabled while saving and re-enabled on failure. **Verified before/after:** the same 15-check test (server stopped mid-session, plus a simulated DB failure) **passed 2/15 on the old code** (pages stuck on "Loading...", uncaught `SyntaxError: Unexpected token '<', "<!DOCTYPE"... is not valid JSON` and `TypeError: Failed to fetch`) and **15/15 after the fix**, with no uncaught errors. **Fixed.** | R06 commit (pending) |
 | D14 | Auth tests run against the real `portal.db` | Low | Tests don't set `DB_PATH` | **Open.** Point at a temporary DB as `reminders.test.js` does. | |
 | D15 | Mechanic filter on "incomplete" uses the **approver**, not the mechanic doing the work | Low | Jobs are not assigned to mechanics; `decided_by` used as a stand-in | The incomplete count now comes from completed jobs, filtered by the mechanic who completed them. **Fixed.** | `b75c42a` |
 | D16 | A mechanic can complete a job **before its booked slot**, giving a **negative** repair duration (seen: −7,970 min for a job completed 5 days early) | High | No check that the slot has started before a checklist is saved. FR13 measures from the booked slot, so finishing early always gives a negative time. Combined with D10, which added about 13h of the error | **Team decision:** early finishes are allowed and count as 0 hours; job details flag "completed before the booked time". **Fixed.** | `b75c42a` |
@@ -284,6 +284,27 @@ The whole system was exercised over HTTP against a fresh throwaway database with
 - **Screenshot review** found and fixed two issues: the search box was narrower than the Vehicle dropdown, and the dropdown was blank on "no match".
 - **Unit tests:** 15/15.
 
+### R06 error handling (2026-10-11)
+
+- **Method.** The test script starts and stops the real server itself, so it can take the server down mid-session. A database failure is simulated by renaming the `vehicles` table while the server runs. The browser (headless Edge) records any uncaught JavaScript errors.
+- **Server checks:**
+  - unknown `/api` address gives JSON 404;
+  - malformed JSON body gives JSON 400;
+  - database failure gives JSON 500 "Something went wrong on the server. Please try again." and logs `[ERROR] GET /api/vehicles/all`.
+- **UI checks (server stopped after the page loaded):**
+  - Approve shows "decision was not saved" and the buttons re-enable;
+  - mechanic and customer Vehicle History show "Could not reach the server", with the dropdown reading "Could not load vehicles";
+  - changing vehicle shows the message;
+  - Cancel says "your booking has not been cancelled";
+  - the booking dropdown says it could not load;
+  - after the server restarts, history loads normally;
+  - no uncaught JavaScript errors.
+- **Before/after evidence:** the same test was run against the previous commit (`0668ce8`) in a temporary copy of the repo.
+  - **Before: 2/15** (and the 2 passes were trivial). Screens stuck on "Loading..." with a blank dropdown; uncaught errors including `SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON` (the HTML error page) and `TypeError: Failed to fetch`.
+  - **After: 15/15.**
+  - Screenshots of both states were saved for the report.
+- **Regression:** unit tests 15/15; full walkthrough 118/118; R04 browser test 18/18; R05 browser test 16/16; no server errors.
+
 ---
 
 ## 6. Design decisions (what to say if asked)
@@ -336,7 +357,7 @@ Issues found in AI-generated code during this phase, and how they were caught:
 
 - Requirements implemented **literally without judgement**: hard delete on cancellation (D01).
 - **Timezone assumptions**: `toISOString()` for "today" (D03), and the UTC/local mismatch in durations (D10).
-- **Missing failure handling**: retries with no delay (D05), `fetch` assuming success (D13).
+- **Missing failure handling**: retries with no delay (D05), and `fetch` assuming success (D13). D13 was fixed in R06. A before/after test showed the AI-generated code produced uncaught errors and frozen screens whenever the server was unavailable.
 - **Latent bugs that only appear as features grow**: the checklist lookup returning the first row (D07).
 - **Unfinished or outdated comments**, e.g. the `GET /api/manager/dashboard` doc comment in `manager.js` listed "Summary cards:" followed by empty bullets (rewritten in `b75c42a`), and the `db.js` header still calls `checklists`/`jobs` "stub tables".
 - **Visual issues only seen in the browser:** after the dashboard bundle, screenshots showed stale card values on an error, awkward text wrapping and uneven mobile widths. The API tests had all passed, which shows why UI checks are still needed alongside automated tests.
@@ -364,14 +385,15 @@ Issues found in AI-generated code during this phase, and how they were caught:
 | `d3ce922` | Daniel | Notes, report draft and README updated after the dashboard bundle |
 | `4a5d79c` | Daniel | Fixes for D17, D18, D19 |
 | `ddc4319` | Daniel | Add a vehicle within booking step 1 (R04, NFR04, D12); `customer3` demo account; placeholders on the vehicle forms; notes updated for D17–D19 and C12 |
-| R05 commit (pending) | Daniel | Number plate search in Vehicle History (R05, AC10) |
+| `0668ce8` | Daniel | Number plate search in Vehicle History (R05, AC10) |
+| R06 commit (pending) | Daniel | Error handling on server and frontend (R06, D13) |
 
 ---
 
 ## 10. Residual risks (for the release decision in Task 8)
 
 - Manager metrics were the biggest risk; R01–R03 and D10/D11/D16 are now fixed and verified. Remaining dashboard limitation: jobs aren't assigned to mechanics before completion, so per-mechanic acceptance uses whoever approved the booking.
-- **Open defects:** D13 (frontend error handling), D14 (auth tests use the real DB).
+- **Open defect:** D14 (auth tests use the real DB; low impact).
 - Email is mocked, so delivery to real inboxes is unverified.
 - The rate limiter and scheduler run inside a single process, so they would not work correctly across multiple servers.
 - Performance (NFR03) has not been measured.

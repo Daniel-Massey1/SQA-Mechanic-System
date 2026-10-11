@@ -403,11 +403,18 @@ document.getElementById('confirm-booking').addEventListener('click', async () =>
 
 // --- Load vehicle options for both the booking flow and history view ----
 async function loadVehicleOptions(selectElementId, selectedVehicleId = null) {
-  const res = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`, {
-    headers: requestHeaders(),
-  });
-  const data = await res.json();
   const select = document.getElementById(selectElementId);
+  let res;
+  let data;
+  try {
+    res = await fetch(`${API_BASE}/vehicles/customer/${getCurrentCustomerId()}`, {
+      headers: requestHeaders(),
+    });
+    data = await res.json();
+  } catch {
+    select.innerHTML = '<option value="">Could not load vehicles. Please refresh the page.</option>';
+    return null;
+  }
   select.innerHTML = '';
 
   if (!res.ok) {
@@ -827,11 +834,18 @@ document.getElementById('booking-details-modal').addEventListener('click', (even
 });
 
 async function cancelBooking(bookingId) {
-  const res = await fetch(`${API_BASE}/bookings/${bookingId}/cancel`, {
-    method: 'POST',
-    headers: requestHeaders(),
-  });
-  const data = await res.json();
+  let res;
+  let data;
+  try {
+    res = await fetch(`${API_BASE}/bookings/${bookingId}/cancel`, {
+      method: 'POST',
+      headers: requestHeaders(),
+    });
+    data = await res.json();
+  } catch {
+    alert('Could not reach the server, so your booking has not been cancelled. Please try again.');
+    return;
+  }
 
   if (!res.ok) {
     alert(data.error);
@@ -974,11 +988,11 @@ async function loadMechanicPortal() {
       const approveButton = document.createElement('button');
       approveButton.textContent = 'Approve';
       approveButton.className = 'approve-btn';
-      approveButton.addEventListener('click', () => decideBooking(booking.id, 'approve'));
+      approveButton.addEventListener('click', () => decideBooking(booking.id, 'approve', [approveButton, denyButton]));
       const denyButton = document.createElement('button');
       denyButton.textContent = 'Deny';
       denyButton.className = 'deny-btn';
-      denyButton.addEventListener('click', () => decideBooking(booking.id, 'deny'));
+      denyButton.addEventListener('click', () => decideBooking(booking.id, 'deny', [approveButton, denyButton]));
       card.append(approveButton, denyButton);
       container.appendChild(card);
     });
@@ -1117,16 +1131,27 @@ function loadDiagnosticVehicleOptions(vehicles) {
   });
 }
 
-async function decideBooking(bookingId, decision) {
-  // Send the mechanic's approval decision to the server.
-  const res = await fetch(`${API_BASE}/mechanics/bookings/${bookingId}/decision`, {
-    method: 'POST',
-    headers: requestHeaders(true),
-    body: JSON.stringify({ decision }),
-  });
-  const data = await res.json();
+async function decideBooking(bookingId, decision, buttons = []) {
+  // Disable Approve/Deny while saving so a slow response can't be clicked twice.
+  buttons.forEach((button) => { button.disabled = true; });
+  let res;
+  let data;
+  try {
+    // Send the mechanic's approval decision to the server.
+    res = await fetch(`${API_BASE}/mechanics/bookings/${bookingId}/decision`, {
+      method: 'POST',
+      headers: requestHeaders(true),
+      body: JSON.stringify({ decision }),
+    });
+    data = await res.json();
+  } catch {
+    buttons.forEach((button) => { button.disabled = false; });
+    alert('Could not reach the server, so the decision was not saved. Please try again.');
+    return;
+  }
 
   if (!res.ok) {
+    buttons.forEach((button) => { button.disabled = false; });
     alert(data.error || 'Unable to update the booking.');
     return;
   }
@@ -1648,9 +1673,24 @@ async function loadHistoryVehicleOptions() {
   // Mechanics and managers can review history for every vehicle.
   if (['mechanic', 'manager'].includes(loggedInAccount?.role)) {
     searchPanel.hidden = false;
-    // This route returns all vehicles for approved staff users.
-    const res = await fetch(`${API_BASE}/vehicles/all`, { headers: requestHeaders() });
-    const data = await res.json();
+    let res;
+    let data;
+    try {
+      // This route returns all vehicles for approved staff users.
+      res = await fetch(`${API_BASE}/vehicles/all`, { headers: requestHeaders() });
+      data = await res.json();
+    } catch {
+      historyVehicles = [];
+      document.getElementById('history-vehicle-select').innerHTML = '<option value="">Could not load vehicles</option>';
+      document.getElementById('history-list').textContent = 'Could not reach the server. Please try again.';
+      return;
+    }
+    if (!res.ok) {
+      historyVehicles = [];
+      document.getElementById('history-vehicle-select').innerHTML = '<option value="">Could not load vehicles</option>';
+      document.getElementById('history-list').textContent = data.error || 'Unable to load vehicles.';
+      return;
+    }
     historyVehicles = data.vehicles || [];
     // Re-apply any search still in the box (e.g. when returning to this view).
     filterHistoryVehicles();
@@ -1659,7 +1699,11 @@ async function loadHistoryVehicleOptions() {
 
   // Customers only see vehicles linked to their account.
   searchPanel.hidden = true;
-  await loadVehicleOptions('history-vehicle-select');
+  const vehicles = await loadVehicleOptions('history-vehicle-select');
+  if (vehicles === null) {
+    document.getElementById('history-list').textContent = 'Could not reach the server. Please try again.';
+    return;
+  }
   const select = document.getElementById('history-vehicle-select');
   if (select.value) loadHistory(select.value);
 }
@@ -1734,10 +1778,17 @@ async function loadHistory(vehicleId) {
   }
   container.textContent = 'Loading...';
 
-  const res = await fetch(`${API_BASE}/vehicles/${vehicleId}/history`, {
-    headers: requestHeaders(),
-  });
-  const data = await res.json();
+  let res;
+  let data;
+  try {
+    res = await fetch(`${API_BASE}/vehicles/${vehicleId}/history`, {
+      headers: requestHeaders(),
+    });
+    data = await res.json();
+  } catch {
+    if (requestId === historyRequestId) container.textContent = 'Could not reach the server. Please try again.';
+    return;
+  }
   if (requestId !== historyRequestId) return;
 
   if (!res.ok) {
