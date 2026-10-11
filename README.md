@@ -15,12 +15,13 @@ The server starts at `http://localhost:3001`. Open that address in a browser and
 To stop the server, press `Ctrl+C` in the terminal.
 
 ## Demo Accounts
-The prototype includes four demo accounts (customers can also sign up, and managers can create or remove accounts):
+The prototype includes five demo accounts (customers can also sign up, and managers can create or remove accounts):
 
 - `customer1` / `123`
 - `customer2` / `123`
 - `mechanic1` / `123`
 - `manager1` / `123`
+- `customer3` / `123` (a customer with no vehicles, for trying the first-time booking flow)
 
 The backend verifies these credentials against SQLite and issues signed, expiring bearer tokens. Demo accounts are seeded only outside production. New customer and mechanic accounts require passwords of 8 to 128 characters.
 

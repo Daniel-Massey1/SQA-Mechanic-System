@@ -163,6 +163,18 @@ button:hover { background: #a30613; }
 .vehicle-form-grid label span { color: var(--muted); font-weight: 400; }
 #add-vehicle-result { min-height: 1.2rem; margin: 0.6rem 0 0; }
 
+/* Booking step 1: add a vehicle without leaving the booking flow (NFR04) */
+.booking-vehicle-intro { margin: 0.25rem 0 0.25rem; color: var(--muted); }
+#booking-vehicle-result { min-height: 1.2rem; margin: 0.6rem 0 0; }
+#add-vehicle-result.result-error,
+#add-vehicle-result.result-success,
+#booking-vehicle-result.result-error { padding: 0.5rem 0.7rem; border-radius: 6px; }
+#booking-vehicle-picker .booking-add-vehicle { display: block; margin: 0.6rem 0 0; }
+/* The site-wide button styles set display, which would otherwise override the hidden attribute. */
+#booking-vehicle-picker[hidden],
+.booking-vehicle-form[hidden],
+#cancel-booking-vehicle[hidden] { display: none !important; }
+
 @media (max-width: 520px) {
   .vehicle-form-grid { grid-template-columns: 1fr; }
 }

@@ -223,7 +223,7 @@ function acceptLoginSession(data) {
 
   if (loggedInAccount.role === 'customer') {
     document.getElementById('customer-home-nav-button').click();
-    loadVehicleOptions('vehicle-select');
+    loadBookingVehicles();
   } else if (loggedInAccount.role === 'mechanic') {
     document.getElementById('bookings-nav-button').click();
   } else if (loggedInAccount.role === 'manager') {
@@ -311,11 +311,6 @@ document.querySelectorAll('[data-customer-destination]').forEach((button) => {
     const destination = button.dataset.customerDestination;
     document.querySelector(`.nav-btn[data-view="${destination}"]`)?.click();
   });
-});
-
-document.getElementById('manage-vehicles-from-booking').addEventListener('click', () => {
-  // Keep booking focused on scheduling; vehicle creation lives in its own customer view.
-  document.getElementById('customer-vehicles-nav-button').click();
 });
 
 document.getElementById('vehicles-booking-button').addEventListener('click', () => {
@@ -413,12 +408,12 @@ async function loadVehicleOptions(selectElementId, selectedVehicleId = null) {
 
   if (!res.ok) {
     select.innerHTML = '<option value="">Log in to view vehicles</option>';
-    return;
+    return null;
   }
 
   if (data.vehicles.length === 0) {
     select.innerHTML = '<option value="">No vehicles found</option>';
-    return;
+    return data.vehicles;
   }
 
   data.vehicles.forEach((v) => {
@@ -430,7 +425,96 @@ async function loadVehicleOptions(selectElementId, selectedVehicleId = null) {
   if (selectedVehicleId && data.vehicles.some((vehicle) => String(vehicle.id) === String(selectedVehicleId))) {
     select.value = String(selectedVehicleId);
   }
+  return data.vehicles;
 }
+
+// --- Adding a vehicle (shared by My Vehicles and booking step 1) ---------
+async function createVehicle(form) {
+  const formData = new FormData(form);
+  const response = await fetch(`${API_BASE}/vehicles`, {
+    method: 'POST',
+    headers: requestHeaders(true),
+    body: JSON.stringify({
+      plate: formData.get('plate'),
+      make: formData.get('make'),
+      model: formData.get('model'),
+      wofExpiry: formData.get('wofExpiry'),
+      serviceDue: formData.get('serviceDue'),
+    }),
+  });
+  const data = await response.json();
+  return response.ok ? { vehicle: data.vehicle } : { error: data.error || 'Unable to add vehicle.' };
+}
+
+// Every customer view that lists vehicles, refreshed after one is added.
+async function refreshCustomerVehicleViews(selectedVehicleId) {
+  await loadBookingVehicles(selectedVehicleId);
+  await loadCustomerVehicles();
+  await loadCustomerDashboard();
+}
+
+// --- Booking step 1: pick a vehicle, or add one without leaving the flow ---
+function showBookingVehicleForm(isFirstVehicle) {
+  document.getElementById('booking-vehicle-picker').hidden = true;
+  document.getElementById('booking-vehicle-form').hidden = false;
+  document.getElementById('booking-vehicle-intro').textContent = isFirstVehicle
+    ? "You don't have a vehicle on your account yet. Add it here to start your booking."
+    : 'Add a new vehicle to your account.';
+  // Someone with no vehicles has nothing to go back to.
+  document.getElementById('cancel-booking-vehicle').hidden = isFirstVehicle;
+  const result = document.getElementById('booking-vehicle-result');
+  result.textContent = '';
+  result.className = '';
+}
+
+function showBookingVehiclePicker() {
+  document.getElementById('booking-vehicle-form').hidden = true;
+  document.getElementById('booking-vehicle-picker').hidden = false;
+}
+
+async function loadBookingVehicles(selectedVehicleId = null) {
+  const vehicles = await loadVehicleOptions('vehicle-select', selectedVehicleId);
+  if (vehicles && vehicles.length === 0) {
+    showBookingVehicleForm(true);
+  } else {
+    showBookingVehiclePicker();
+  }
+}
+
+document.getElementById('show-booking-vehicle-form').addEventListener('click', () => {
+  showBookingVehicleForm(false);
+  document.getElementById('booking-vehicle-plate').focus();
+});
+
+document.getElementById('cancel-booking-vehicle').addEventListener('click', () => {
+  document.getElementById('booking-vehicle-form').reset();
+  showBookingVehiclePicker();
+});
+
+document.getElementById('booking-vehicle-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const result = document.getElementById('booking-vehicle-result');
+  result.textContent = 'Saving vehicle...';
+  result.className = '';
+
+  try {
+    const { vehicle, error } = await createVehicle(form);
+    if (error) {
+      result.textContent = error;
+      result.className = 'result-error';
+      return;
+    }
+
+    form.reset();
+    await refreshCustomerVehicleViews(vehicle.id);
+    // The new vehicle is now selected, so carry straight on to step 2.
+    document.getElementById('to-step-2').click();
+  } catch {
+    result.textContent = 'Could not reach the server. Please try again.';
+    result.className = 'result-error';
+  }
+});
 
 function formatVehicleSummary(vehicle) {
   return `${vehicle.plate} - ${vehicle.make} ${vehicle.model}`;
@@ -547,33 +631,19 @@ document.getElementById('add-vehicle-form').addEventListener('submit', async (ev
   const result = document.getElementById('add-vehicle-result');
   result.textContent = '';
   result.className = '';
-  const formData = new FormData(form);
 
   try {
-    const response = await fetch(`${API_BASE}/vehicles`, {
-      method: 'POST',
-      headers: requestHeaders(true),
-      body: JSON.stringify({
-        plate: formData.get('plate'),
-        make: formData.get('make'),
-        model: formData.get('model'),
-        wofExpiry: formData.get('wofExpiry'),
-        serviceDue: formData.get('serviceDue'),
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      result.textContent = data.error || 'Unable to add vehicle.';
+    const { vehicle, error } = await createVehicle(form);
+    if (error) {
+      result.textContent = error;
       result.className = 'result-error';
       return;
     }
 
     form.reset();
-    result.textContent = `${data.vehicle.plate} added to your vehicles.`;
+    result.textContent = `${vehicle.plate} added to your vehicles.`;
     result.className = 'result-success';
-    await loadVehicleOptions('vehicle-select', data.vehicle.id);
-    await loadCustomerVehicles();
-    await loadCustomerDashboard();
+    await refreshCustomerVehicleViews(vehicle.id);
   } catch {
     result.textContent = 'Could not reach the server. Please try again.';
     result.className = 'result-error';
@@ -1839,7 +1909,7 @@ async function initializeApp() {
   bookingDateInput.min = localDateString();
   bookingDateInput.value = localDateString();
   if (loggedInAccount?.role === 'customer') {
-    loadVehicleOptions('vehicle-select');
+    loadBookingVehicles();
     loadAvailableTimeSlots();
     document.getElementById('customer-home-nav-button').click();
   } else if (loggedInAccount?.role === 'mechanic') {

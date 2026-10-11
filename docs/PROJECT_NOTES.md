@@ -2,7 +2,7 @@
 
 > **Purpose:** a single reference for finishing Assessment 2. It records what is built, which requirements are met, the requirement changes to make, the defects found, and what is left.
 > **Readers:** the team, and any AI assistant given this file as context.
-> **Last updated:** 2026-10-08 (after commit `b75c42a`, the manager dashboard bundle; requirement wording updated by the team, see section 3).
+> **Last updated:** 2026-10-11 (after Sam's reschedule merge `bcf47e0` and the D17–D19 bug fixes; requirement wording updated by the team, see section 3).
 > **Status legend:** ✅ done · ⚠️ partial · ❌ missing · ❓ needs testing · 📝 requirement wording was changed (see section 3)
 
 ---
@@ -130,6 +130,7 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | — | FR05 | — | **Kept as written** (team decision) | Implementation already runs at 8:00am NZ time and sends within 30 minutes. AC07 covers service reminders. | ✅ No change |
 | — | AC04 | "inform the customer the timeslot is created" | "...is already taken" | Typo fix. | ✅ Applied |
 | — | (A1 limitations) | "Not yet added: login saves when reloading page" | Line removed | It is implemented: the session is saved and re-checked with `/api/auth/session`. | ✅ Applied |
+| C12 | **New feature (scope addition)** | Not in the A1 requirements | **Customers can reschedule** a pending/confirmed booking more than 24h ahead to a free workshop slot. The booking returns to `pending` for mechanic approval and the workshop is emailed (Sam, `7f8348f`, merged `bcf47e0`). | Saves cancelling and rebooking; uses the same 24h rule as cancellation (FR03) and the same approval flow (FR07). Either add it as a new requirement (e.g. FR18 + an AC) or record it as a scope addition in Task 1. | 📄 Write-up (Task 1 scope changes) + RTM |
 
 ### Inconsistencies in the A1 requirements (useful for Task 2)
 
@@ -151,7 +152,6 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | R06 | Consistent error handling (frontend `fetch` without try/catch, some routes with no DB error handling) | A1 limitations | Small–Medium | E.g. `loadHistory`, `loadHistoryVehicleOptions`, `decideBooking`. |
 | R07 | Optional: SQLite trigger blocking UPDATE/DELETE on `diagnostic_entries`; record which mechanic made each entry | NFR06, AC16 | Small | Moves the integrity rule from the app into the database. |
 | R08 | Optional: index on `diagnostic_entries(vehicle_id)` before performance testing | NFR03 | Tiny | |
-| R09 | Login rate limit should count only failed attempts | NFR01 | Tiny | Fixes D17; do this before the demo. |
 
 ### Done
 
@@ -160,6 +160,7 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | R01 | Date-range filter on the manager dashboard (from/to, default last 30 days) for all metrics and the jobs list | FR11, FR13–FR16 | `b75c42a` |
 | R02 | Average repair time in hours, both timestamps compared in NZ time, early finishes count as 0 | FR13, AC19 | `b75c42a` |
 | R03 | Jobs can be closed with unticked items: "Checklist Incomplete", completion % and ticked items stored | FR10, FR15, FR16, AC18 | `b75c42a` |
+| R09 | Login rate limit counts only failed attempts (fixes D17), plus fixes for D18 and D19 | NFR01, FR14 | `4a5d79c` |
 
 ### Non-feature work still to do (later tasks)
 
@@ -196,7 +197,11 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | D14 | Auth tests run against the real `portal.db` | Low | Tests don't set `DB_PATH` | **Open.** Point at a temporary DB as `reminders.test.js` does. | |
 | D15 | Mechanic filter on "incomplete" uses the **approver**, not the mechanic doing the work | Low | Jobs are not assigned to mechanics; `decided_by` used as a stand-in | The incomplete count now comes from completed jobs, filtered by the mechanic who completed them. **Fixed.** | `b75c42a` |
 | D16 | A mechanic can complete a job **before its booked slot**, giving a **negative** repair duration (seen: −7,970 min for a job completed 5 days early) | High | No check that the slot has started before a checklist is saved. FR13 measures from the booked slot, so finishing early always gives a negative time. Combined with D10, which added about 13h of the error | **Team decision:** early finishes are allowed and count as 0 hours; job details flag "completed before the booked time". **Fixed.** | `b75c42a` |
-| D17 | Login rate limit counts **successful** logins as well as failed ones, so switching roles about 10 times in 15 min locks you out (429) | Medium (demo risk) | `loginLimiter` (10 requests per 15 min per IP) counts every request to `/api/auth/login` | **Open.** Count only failed attempts, or raise the limit for local use. Restarting the server clears it. | |
+| D17 | Login rate limit counts **successful** logins as well as failed ones, so switching roles about 10 times in 15 min locks you out (429) | Medium (demo risk) | `loginLimiter` (10 requests per 15 min per IP) counts every request to `/api/auth/login` | New `countFailuresOnly` option; login counts only responses ≥ 400. Verified: 15 successful logins in a row allowed; 10 wrong passwords allowed, the 11th gets 429 (brute-force protection kept). **Fixed.** | `4a5d79c` |
+| D18 | **Rescheduling distorted the acceptance rate.** A rescheduled booking went back to `pending` but kept its earlier approval, so it counted as approved while awaiting re-approval. If the new time was then denied, the earlier approval vanished from the figure (100% → 0%) | Medium | Sam's reschedule feature (`7f8348f`) and the dashboard's `decided_at` metric (`b75c42a`) were built in parallel branches. Neither change accounted for the other, and the merge raised no conflict because they touched different lines | Rescheduling clears `decided_by` / `decided_at`, so the new time is undecided until a mechanic decides. Verified: approved 100% → rescheduled N/A → re-approved 100%. **Fixed.** | `4a5d79c` |
+| D19 | **Bookings could be created outside workshop hours** through the API (e.g. 03:00 accepted), although rescheduling enforced 9:00–16:00 on the hour | Low | The workshop-hours rule (`isWorkshopSlot`) was added for reschedule only; booking creation relied on the frontend offering only valid slots | Booking creation now uses `isWorkshopSlot()`. Verified: 03:00, 08:00, 17:00 and 10:30 rejected with a message; 09:00 and 16:00 accepted. **Fixed.** | `4a5d79c` |
+
+**Found by the code review on 2026-10-11:** D18 and D19, both from the reschedule merge. D18 is a good example of an **integration defect**: two branches were correct on their own, but wrong together. It isn't a merge conflict, so git can't detect it; only re-testing after a merge (regression) finds it.
 
 **Good candidates for the 3 root cause analyses:** D03 (timezone), D01 (literal requirement, then data loss), D08 (template edits rewriting history). D10 is another timezone defect with the same root cause as D03, which makes a strong "lesson learned and prevention" point: store and compare all timestamps the same way.
 
@@ -265,7 +270,8 @@ The whole system was exercised over HTTP against a fresh throwaway database with
 
 ## 7. Testing notes
 
-- **Current automated tests (10, all passing after `b75c42a`):**
+- **Current automated tests (15, all passing on 2026-10-11):**
+  - `backend/routes/reschedule.test.js`: 5 tests (Sam: reschedule rules, using a temporary DB).
   - `backend/auth.test.js`: 5 tests (auth and access).
   - `backend/security.test.js`: 2 tests (password hashing, rate limiting).
   - `backend/routes/bookings.test.js`: 3 tests (24h boundary, Sam).
@@ -313,18 +319,21 @@ Issues found in AI-generated code during this phase, and how they were caught:
 | `7dfd6c8` | Daniel | Cancelled bookings kept as a status; customers notified of approve/deny; email outbox |
 | `1b4d47b` | Daniel | Service reminders; WOF reminder fixes (8am NZ, no duplicates, retries over 24h); README |
 | `f39226d` | Sam | 24h cancellation boundary made inclusive, with unit tests |
+| `7f8348f` (merged `bcf47e0`) | Sam | Customer booking rescheduling (new scope, C12), with 5 tests in `routes/reschedule.test.js` |
 | `1a5f413` | Daniel | Manager checklist template editor with versioning and validation |
 | `f58d3d8`, `8ba9617` | Daniel | Project notes (requirement status, changes, defect register) |
 | `a470349` | Daniel | README update (roles, features, tests, project structure) |
 | `8c002e5` | Daniel | Report draft (RTM, test cases, automation plan, RCA, quality testing plan) |
 | `b75c42a` | Daniel | Manager dashboard: date range, real checklist compliance, repair time fix (R01–R03; D10, D11, D15, D16) |
+| `d3ce922` | Daniel | Notes, report draft and README updated after the dashboard bundle |
+| `4a5d79c` | Daniel | Fixes for D17, D18, D19 |
 
 ---
 
 ## 10. Residual risks (for the release decision in Task 8)
 
 - Manager metrics were the biggest risk; R01–R03 and D10/D11/D16 are now fixed and verified. Remaining dashboard limitation: jobs aren't assigned to mechanics before completion, so per-mechanic acceptance uses whoever approved the booking.
-- **Open defects:** D12 (first-time customer 3 steps), D13 (frontend error handling), D14 (auth tests use the real DB), D17 (login limit counts successful logins; demo risk).
+- **Open defects:** D12 (first-time customer 3 steps), D13 (frontend error handling), D14 (auth tests use the real DB).
 - Email is mocked, so delivery to real inboxes is unverified.
 - The rate limiter and scheduler run inside a single process, so they would not work correctly across multiple servers.
 - Performance (NFR03) has not been measured.

@@ -190,10 +190,44 @@
         </div>
 
         <div id="step-1" class="step-panel active">
-          <label for="vehicle-select">Select your vehicle</label>
-          <select id="vehicle-select"></select>
-          <button id="to-step-2">Next</button>
-          <button id="manage-vehicles-from-booking" class="secondary-action" type="button">Add or manage vehicles</button>
+          <div id="booking-vehicle-picker">
+            <label for="vehicle-select">Select your vehicle</label>
+            <select id="vehicle-select"></select>
+            <button id="show-booking-vehicle-form" class="details-btn booking-add-vehicle" type="button">+ Add a new vehicle</button>
+            <button id="to-step-2">Next</button>
+          </div>
+
+          <!-- NFR04: a first-time customer adds their vehicle here without leaving step 1. -->
+          <form id="booking-vehicle-form" class="booking-vehicle-form" hidden>
+            <p id="booking-vehicle-intro" class="booking-vehicle-intro"></p>
+            <div class="vehicle-form-grid">
+              <div>
+                <label for="booking-vehicle-plate">Registration plate</label>
+                <input id="booking-vehicle-plate" name="plate" type="text" maxlength="12" autocomplete="off" placeholder="e.g. ABC123" required />
+              </div>
+              <div>
+                <label for="booking-vehicle-make">Make</label>
+                <input id="booking-vehicle-make" name="make" type="text" maxlength="60" placeholder="e.g. Toyota" required />
+              </div>
+              <div>
+                <label for="booking-vehicle-model">Model</label>
+                <input id="booking-vehicle-model" name="model" type="text" maxlength="60" placeholder="e.g. Corolla" required />
+              </div>
+              <div>
+                <label for="booking-vehicle-wof">WOF expiry <span>(optional)</span></label>
+                <input id="booking-vehicle-wof" name="wofExpiry" type="date" />
+              </div>
+              <div>
+                <label for="booking-vehicle-service">Next service due <span>(optional)</span></label>
+                <input id="booking-vehicle-service" name="serviceDue" type="date" />
+              </div>
+            </div>
+            <p id="booking-vehicle-result" role="status"></p>
+            <div class="btn-row">
+              <button id="cancel-booking-vehicle" class="secondary-action" type="button">Cancel</button>
+              <button type="submit">Save &amp; continue</button>
+            </div>
+          </form>
         </div>
 
         <div id="step-2" class="step-panel">
@@ -268,15 +302,15 @@
             <div class="vehicle-form-grid">
               <div>
                 <label for="new-vehicle-plate">Registration plate</label>
-                <input id="new-vehicle-plate" name="plate" type="text" maxlength="12" autocomplete="off" required />
+                <input id="new-vehicle-plate" name="plate" type="text" maxlength="12" autocomplete="off" placeholder="e.g. ABC123" required />
               </div>
               <div>
                 <label for="new-vehicle-make">Make</label>
-                <input id="new-vehicle-make" name="make" type="text" maxlength="60" required />
+                <input id="new-vehicle-make" name="make" type="text" maxlength="60" placeholder="e.g. Toyota" required />
               </div>
               <div>
                 <label for="new-vehicle-model">Model</label>
-                <input id="new-vehicle-model" name="model" type="text" maxlength="60" required />
+                <input id="new-vehicle-model" name="model" type="text" maxlength="60" placeholder="e.g. Corolla" required />
               </div>
               <div>
                 <label for="new-vehicle-wof">WOF expiry <span>(optional)</span></label>

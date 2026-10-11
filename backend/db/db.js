@@ -251,6 +251,7 @@ function rejectDefaultProductionCredentials() {
     ['customer2', '123'],
     ['mechanic1', '123'],
     ['manager1', '123'],
+    ['customer3', '123'],
   ];
   const findUser = db.prepare('SELECT password_hash FROM users WHERE username = ?');
   for (const [username, password] of knownDefaults) {
@@ -261,21 +262,43 @@ function rejectDefaultProductionCredentials() {
   }
 }
 
-function seedDemoAccounts() {
-  // Persist completion so manager-deleted demo accounts are not recreated after restart.
-  const seeded = db.prepare("SELECT value FROM app_metadata WHERE key = 'demo_accounts_seeded'").get();
-  if (seeded) return;
+// Each batch of demo accounts is created once per database, recorded under its own
+// app_metadata key, so manager-deleted demo accounts are not recreated after restart
+// and batches added later still reach existing databases.
+const DEMO_ACCOUNT_BATCHES = [
+  {
+    key: 'demo_accounts_seeded',
+    accounts: [
+      { username: 'customer1', password: '123', role: 'customer', displayName: 'Jane Smith', email: 'jane@example.com' },
+      { username: 'customer2', password: '123', role: 'customer', displayName: 'Tom Reid', email: 'tom@example.com' },
+      { username: 'mechanic1', password: '123', role: 'mechanic', displayName: 'Demo Mechanic', email: null },
+      { username: 'manager1', password: '123', role: 'manager', displayName: 'Demo Manager', email: null },
+    ],
+  },
+  {
+    // A customer with no vehicles, for demonstrating the first-time booking flow (NFR04).
+    key: 'demo_accounts_seeded_customer3',
+    accounts: [
+      { username: 'customer3', password: '123', role: 'customer', displayName: 'Alex Morgan', email: 'alex@example.com' },
+    ],
+  },
+];
 
+function seedDemoAccounts() {
+  for (const batch of DEMO_ACCOUNT_BATCHES) {
+    const seeded = db.prepare('SELECT value FROM app_metadata WHERE key = ?').get(batch.key);
+    if (!seeded) {
+      insertDemoAccounts(batch.accounts);
+      db.prepare("INSERT INTO app_metadata (key, value) VALUES (?, '1')").run(batch.key);
+    }
+  }
+}
+
+function insertDemoAccounts(demoAccounts) {
   const insertUser = db.prepare(
     `INSERT OR IGNORE INTO users (username, password_hash, role, display_name, email, customer_id)
      VALUES (?, ?, ?, ?, ?, ?)`
   );
-  const demoAccounts = [
-    { username: 'customer1', password: '123', role: 'customer', displayName: 'Jane Smith', email: 'jane@example.com' },
-    { username: 'customer2', password: '123', role: 'customer', displayName: 'Tom Reid', email: 'tom@example.com' },
-    { username: 'mechanic1', password: '123', role: 'mechanic', displayName: 'Demo Mechanic', email: null },
-    { username: 'manager1', password: '123', role: 'manager', displayName: 'Demo Manager', email: null },
-  ];
 
   for (const account of demoAccounts) {
     let customerId = null;
@@ -293,8 +316,6 @@ function seedDemoAccounts() {
       customerId
     );
   }
-
-  db.prepare("INSERT INTO app_metadata (key, value) VALUES ('demo_accounts_seeded', '1')").run();
 }
 
 function seedIfEmpty() {
