@@ -21,6 +21,12 @@ function isWithinCancellationWindow(slotTime, now = new Date()) {
   return slotTime.getTime() - now.getTime() <= CANCELLATION_WINDOW_HOURS * 60 * 60 * 1000;
 }
 
+// Workshop slots are one hour long, on the hour, from 9:00 to 16:00.
+function isWorkshopSlot(slotStart) {
+  const match = /^\d{4}-\d{2}-\d{2} (\d{2}):00:00$/.exec(slotStart);
+  return Boolean(match) && Number(match[1]) >= 9 && Number(match[1]) <= 16;
+}
+
 function generateConfirmationRef() {
   return `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
@@ -242,5 +248,100 @@ router.post('/:id/cancel', requireAccount, (req, res) => {
   return res.json({ message: 'Booking cancelled.', workshopNotified: true });
 });
 
+/**
+ * POST /api/bookings/:id/reschedule
+ * Body: { slotStart }
+ *
+ *  - Only the customer who made a pending/confirmed booking can move it.
+ *  - Rescheduling follows the same 24-hour rule as cancelling, based on the
+ *    booking's current appointment time.
+ *  - The new slot must be a future, on-the-hour workshop slot that is free.
+ *    If anything fails the existing booking is left untouched.
+ *  - The booking returns to 'pending' so a mechanic approves the new time.
+ */
+router.post('/:id/reschedule', requireAccount, (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { slotStart } = req.body;
+
+  if (req.account.role !== 'customer') {
+    return denyAccess(req, res, 'Only customer accounts can reschedule bookings.');
+  }
+
+  const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
+  if (!booking) {
+    return res.status(404).json({ error: 'Booking not found.' });
+  }
+  if (booking.booked_by !== req.account.username) {
+    return denyAccess(req, res, 'You can only reschedule your own bookings.');
+  }
+  if (!['pending', 'confirmed'].includes(booking.status)) {
+    return res.status(400).json({ error: `A ${booking.status} booking cannot be rescheduled.` });
+  }
+
+  const currentSlot = parseSlotStart(booking.slot_start);
+  if (!currentSlot) {
+    console.error(`Booking #${id} has an invalid slot_start and cannot be rescheduled safely.`);
+    return res.status(500).json({ error: 'Unable to verify the booking time. Please try again later.' });
+  }
+  const now = new Date();
+  if (isWithinCancellationWindow(currentSlot, now)) {
+    return res.status(400).json({
+      error: `Bookings cannot be rescheduled within ${CANCELLATION_WINDOW_HOURS} hours of the booking time.`,
+    });
+  }
+
+  const newSlot = parseSlotStart(slotStart);
+  if (!newSlot) {
+    return res.status(400).json({ error: 'slotStart must be a valid date and time.' });
+  }
+  if (newSlot.getTime() <= now.getTime()) {
+    return res.status(400).json({ error: 'Bookings must be made for a future time.' });
+  }
+  if (!isWorkshopSlot(slotStart)) {
+    return res.status(400).json({ error: 'Choose a one-hour slot between 9:00 AM and 5:00 PM.' });
+  }
+  if (slotStart === booking.slot_start) {
+    return res.status(400).json({ error: 'Choose a different time from your current booking.' });
+  }
+
+  const taken = db.prepare(
+    `SELECT id FROM bookings WHERE slot_start = ? AND status IN ('pending', 'confirmed') AND id != ?`
+  ).get(slotStart, id);
+  if (taken) {
+    return res.status(409).json({ error: 'That time slot is no longer available. Please choose another slot.' });
+  }
+
+  try {
+    db.prepare(
+      `UPDATE bookings
+       SET slot_start = ?, status = 'pending',
+           customer_notification = 'This booking was rescheduled and is awaiting mechanic approval.'
+       WHERE id = ?`
+    ).run(slotStart, id);
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.code === 'SQLITE_CONSTRAINT') {
+      return res.status(409).json({ error: 'That time slot is no longer available. Please choose another slot.' });
+    }
+    console.error(err);
+    return res.status(500).json({ error: 'Unexpected error while rescheduling the booking.' });
+  }
+
+  const vehicle = db.prepare('SELECT plate FROM vehicles WHERE id = ?').get(booking.vehicle_id);
+  sendNow(db, {
+    type: 'booking_rescheduled',
+    recipient: WORKSHOP_EMAIL,
+    subject: `Booking ${booking.confirmation_ref} rescheduled`,
+    body: `Booking ${booking.confirmation_ref} for ${vehicle?.plate || 'unknown vehicle'} `
+      + `(${booking.service_type.replace('_', ' ')}) was moved from ${booking.slot_start} to ${slotStart} `
+      + `by ${req.account.username} and needs approval.`,
+    bookingId: booking.id,
+  });
+
+  const updated = db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
+  return res.json({ message: 'Booking rescheduled.', booking: updated, workshopNotified: true });
+});
+
 module.exports = router;
+module.exports.isWorkshopSlot = isWorkshopSlot;
 module.exports.isWithinCancellationWindow = isWithinCancellationWindow;

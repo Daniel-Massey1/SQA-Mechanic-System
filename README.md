@@ -76,6 +76,7 @@ The application is split into a static frontend and a Node.js backend. The backe
 - Three-step booking: vehicle, service and time slot, confirm. Taken slots are rejected.
 - Booking list with upcoming and past bookings, plus approval, decline and cancellation notices
 - Cancellation more than 24 hours ahead (kept as a cancelled record for auditing)
+- Rescheduling to another available slot, blocked within 24 hours of the current appointment; the booking returns to pending for mechanic approval
 - My Vehicles: add vehicles with WOF expiry and next service due dates
 - WOF and service due reminders 14 days ahead, with retries
 - Vehicle history: fixes and issues flagged for the next visit, newest first

@@ -65,9 +65,10 @@ function formatSlotTime(hour) {
   return new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function renderTimeSlots(date, bookedSlots) {
-  const container = document.getElementById('available-time-slots');
-  const message = document.getElementById('availability-message');
+function renderTimeSlots(date, bookedSlots, options = {}) {
+  const container = options.container || document.getElementById('available-time-slots');
+  const message = options.message || document.getElementById('availability-message');
+  const onSelect = options.onSelect || ((slotStart) => { bookingState.slotStart = slotStart; });
   const booked = new Set(bookedSlots);
   container.replaceChildren();
 
@@ -99,7 +100,7 @@ function renderTimeSlots(date, bookedSlots) {
       });
       button.classList.add('is-selected');
       button.setAttribute('aria-pressed', 'true');
-      bookingState.slotStart = `${date} ${startTime}:00`;
+      onSelect(`${date} ${startTime}:00`);
       message.textContent = `Selected ${period.textContent}.`;
       message.className = 'availability-message is-selected';
     });
@@ -651,12 +652,21 @@ function renderBookingCards(container, bookings, isMechanic, emptyMessage, allow
     }
 
     // Mechanics can cancel approved appointments; customers can cancel pending or approved requests.
-    if (allowCancellation && (b.status === 'confirmed' || (!isMechanic && b.status === 'pending'))) {
+    const cancelAllowed = allowCancellation && (b.status === 'confirmed' || (!isMechanic && b.status === 'pending'));
+    if (cancelAllowed) {
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'Cancel Booking';
       cancelBtn.className = 'cancel-btn';
       cancelBtn.addEventListener('click', () => cancelBooking(b.id));
       card.appendChild(cancelBtn);
+    }
+
+    if (!isMechanic && allowCancellation && ['pending', 'confirmed'].includes(b.status)) {
+      const rescheduleBtn = document.createElement('button');
+      rescheduleBtn.textContent = 'Reschedule';
+      rescheduleBtn.className = 'details-btn';
+      rescheduleBtn.addEventListener('click', () => openRescheduleModal(b));
+      card.appendChild(rescheduleBtn);
     }
 
     const detailsBtn = document.createElement('button');
@@ -757,6 +767,98 @@ async function cancelBooking(bookingId) {
   alert('Booking cancelled. The workshop has been notified by email.');
   loadBookings();
 }
+
+// --- Reschedule -----------------------------------------------------------
+const rescheduleState = { bookingId: null, slotStart: null, requestId: 0 };
+
+async function loadRescheduleSlots() {
+  const date = document.getElementById('reschedule-date').value;
+  const container = document.getElementById('reschedule-time-slots');
+  const message = document.getElementById('reschedule-availability-message');
+  const requestId = ++rescheduleState.requestId;
+  rescheduleState.slotStart = null;
+  container.replaceChildren();
+  if (!date) {
+    message.textContent = 'Choose a date to view available times.';
+    return;
+  }
+
+  message.textContent = 'Checking available times...';
+  try {
+    const response = await fetch(`${API_BASE}/bookings/availability?date=${encodeURIComponent(date)}`, {
+      headers: requestHeaders(),
+    });
+    const data = await response.json();
+    if (requestId !== rescheduleState.requestId) return;
+    if (!response.ok) {
+      message.textContent = data.error || 'Unable to check availability.';
+      return;
+    }
+    renderTimeSlots(date, data.bookedSlots, {
+      container,
+      message,
+      onSelect: (slotStart) => { rescheduleState.slotStart = slotStart; },
+    });
+  } catch {
+    if (requestId === rescheduleState.requestId) message.textContent = 'Could not check availability. Please try again.';
+  }
+}
+
+function openRescheduleModal(booking) {
+  rescheduleState.bookingId = booking.id;
+  document.getElementById('reschedule-current').textContent =
+    `${booking.plate} - current time: ${new Date(booking.slot_start.replace(' ', 'T')).toLocaleString()}`;
+  const dateInput = document.getElementById('reschedule-date');
+  dateInput.min = localDateString();
+  dateInput.value = localDateString();
+  const result = document.getElementById('reschedule-result');
+  result.textContent = '';
+  result.className = '';
+  document.getElementById('reschedule-modal').hidden = false;
+  loadRescheduleSlots();
+}
+
+function closeRescheduleModal() {
+  document.getElementById('reschedule-modal').hidden = true;
+}
+
+document.getElementById('reschedule-date').addEventListener('change', loadRescheduleSlots);
+document.getElementById('close-reschedule-modal').addEventListener('click', closeRescheduleModal);
+document.getElementById('reschedule-modal').addEventListener('click', (event) => {
+  if (event.target.id === 'reschedule-modal') closeRescheduleModal();
+});
+
+document.getElementById('confirm-reschedule').addEventListener('click', async () => {
+  const result = document.getElementById('reschedule-result');
+  if (!rescheduleState.slotStart) {
+    result.textContent = 'Choose an available one-hour time slot.';
+    result.className = 'result-error';
+    return;
+  }
+
+  result.textContent = 'Submitting...';
+  result.className = '';
+  try {
+    const response = await fetch(`${API_BASE}/bookings/${rescheduleState.bookingId}/reschedule`, {
+      method: 'POST',
+      headers: requestHeaders(true),
+      body: JSON.stringify({ slotStart: rescheduleState.slotStart }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      result.textContent = data.error || 'Unable to reschedule the booking.';
+      result.className = 'result-error';
+      if (response.status === 409) loadRescheduleSlots();
+      return;
+    }
+    closeRescheduleModal();
+    alert('Booking rescheduled. It is now awaiting mechanic approval.');
+    loadBookings();
+  } catch {
+    result.textContent = 'Could not reach the server. Please try again.';
+    result.className = 'result-error';
+  }
+});
 
 // --- Mechanic Portal ------------------------------------------------------
 async function loadMechanicPortal() {

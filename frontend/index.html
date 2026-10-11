@@ -527,6 +527,22 @@
     </section>
   </div>
 
+  <div id="reschedule-modal" class="modal-backdrop" hidden>
+    <section class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="reschedule-title">
+      <div class="modal-header">
+        <h2 id="reschedule-title">Reschedule booking</h2>
+        <button id="close-reschedule-modal" class="modal-close" type="button" aria-label="Close reschedule">&times;</button>
+      </div>
+      <p id="reschedule-current"></p>
+      <label for="reschedule-date">New date</label>
+      <input id="reschedule-date" type="date" />
+      <p id="reschedule-availability-message" class="availability-message"></p>
+      <div id="reschedule-time-slots" class="time-slot-grid"></div>
+      <button id="confirm-reschedule" type="button">Confirm new time</button>
+      <p id="reschedule-result" role="status"></p>
+    </section>
+  </div>
+
   <div id="booking-details-modal" class="modal-backdrop" hidden>
     <section class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-header">
