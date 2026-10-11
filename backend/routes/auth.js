@@ -11,6 +11,8 @@ const loginLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   maxRequests: 10,
   message: 'Too many login attempts. Try again later.',
+  // Only failed logins count, so switching between accounts never triggers the limit (D17).
+  countFailuresOnly: true,
 });
 const signupLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000,

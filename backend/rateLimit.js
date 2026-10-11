@@ -1,4 +1,6 @@
-function createRateLimiter({ windowMs, maxRequests, message }) {
+// countFailuresOnly: only responses with status >= 400 use up the allowance (e.g. failed
+// logins), so normal use such as switching accounts never locks anyone out.
+function createRateLimiter({ windowMs, maxRequests, message, countFailuresOnly = false }) {
   const attempts = new Map();
   let requestsSinceCleanup = 0;
 
@@ -20,7 +22,6 @@ function createRateLimiter({ windowMs, maxRequests, message }) {
       attempts.set(key, entry);
     }
 
-    entry.count += 1;
     requestsSinceCleanup += 1;
     if (requestsSinceCleanup >= maxRequests * 10) {
       requestsSinceCleanup = 0;
@@ -29,9 +30,17 @@ function createRateLimiter({ windowMs, maxRequests, message }) {
       }
     }
 
-    if (entry.count > maxRequests) {
+    if (entry.count >= maxRequests) {
       res.set('Retry-After', String(Math.max(1, Math.ceil((entry.resetAt - now) / 1000))));
       return res.status(429).json({ error: message });
+    }
+
+    if (countFailuresOnly) {
+      res.on('finish', () => {
+        if (res.statusCode >= 400) entry.count += 1;
+      });
+    } else {
+      entry.count += 1;
     }
     return next();
   };

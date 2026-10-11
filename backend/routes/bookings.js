@@ -136,6 +136,10 @@ router.post('/', requireAccount, (req, res) => {
   if (parsedSlotStart.getTime() <= Date.now()) {
     return res.status(400).json({ error: 'Bookings must be made for a future time.' });
   }
+  // Same rule as rescheduling, so the API can't create bookings the booking page wouldn't offer.
+  if (!isWorkshopSlot(slotStart)) {
+    return res.status(400).json({ error: 'Choose a one-hour slot between 9:00 AM and 5:00 PM.' });
+  }
 
   if (!VALID_SERVICE_TYPES.includes(serviceType)) {
     return res.status(400).json({ error: `Invalid service type. Must be one of: ${VALID_SERVICE_TYPES.join(', ')}` });
@@ -316,6 +320,9 @@ router.post('/:id/reschedule', requireAccount, (req, res) => {
     db.prepare(
       `UPDATE bookings
        SET slot_start = ?, status = 'pending',
+           -- The earlier approval was for the old time, so the new time is undecided again
+           -- (otherwise the dashboard counts it as approved while it awaits approval).
+           decided_by = NULL, decided_at = NULL,
            customer_notification = 'This booking was rescheduled and is awaiting mechanic approval.'
        WHERE id = ?`
     ).run(slotStart, id);
