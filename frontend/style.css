@@ -163,6 +163,11 @@ button:hover { background: #a30613; }
 .vehicle-form-grid label span { color: var(--muted); font-weight: 400; }
 #add-vehicle-result { min-height: 1.2rem; margin: 0.6rem 0 0; }
 
+/* Vehicle history plate search (AC10) */
+.history-search[hidden] { display: none; }
+.history-search-message { min-height: 1.2rem; margin: 0.35rem 0 0; color: var(--muted); font-size: 0.85rem; }
+.history-search-message.is-empty { color: #9d0715; }
+
 /* Booking step 1: add a vehicle without leaving the booking flow (NFR04) */
 .booking-vehicle-intro { margin: 0.25rem 0 0.25rem; color: var(--muted); }
 #booking-vehicle-result { min-height: 1.2rem; margin: 0.6rem 0 0; }

@@ -349,6 +349,12 @@
     <!-- Vehicle history -->
     <section id="view-history" class="view">
       <h2>Vehicle History</h2>
+      <!-- AC10: mechanics and managers search every vehicle by number plate. -->
+      <div id="history-search-panel" class="history-search" hidden>
+        <label for="history-plate-search">Search by number plate</label>
+        <input id="history-plate-search" type="search" placeholder="e.g. ABC123" autocomplete="off" maxlength="12" />
+        <p id="history-search-message" class="history-search-message" role="status"></p>
+      </div>
       <label for="history-vehicle-select">Vehicle</label>
       <select id="history-vehicle-select"></select>
       <div id="history-list"></div>

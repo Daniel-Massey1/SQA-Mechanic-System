@@ -2,7 +2,7 @@
 
 > **Purpose:** a single reference for finishing Assessment 2. It records what is built, which requirements are met, the requirement changes to make, the defects found, and what is left.
 > **Readers:** the team, and any AI assistant given this file as context.
-> **Last updated:** 2026-10-11 (after Sam's reschedule merge `bcf47e0` and the D17–D19 bug fixes; requirement wording updated by the team, see section 3).
+> **Last updated:** 2026-10-11 (after R05 plate search; **all 23 requirements now implemented**; previous: `ddc4319` adding a vehicle within booking (R04), `customer3` demo account, form placeholders).
 > **Status legend:** ✅ done · ⚠️ partial · ❌ missing · ❓ needs testing · 📝 requirement wording was changed (see section 3)
 
 ---
@@ -13,7 +13,7 @@
 - **Stack:** Node.js + Express backend (`backend/`), SQLite via `better-sqlite3` (`backend/db/portal.db`), plain HTML/CSS/JS frontend (`frontend/`). Everything runs on `http://localhost:3001`.
 - **Run:** `cd backend && npm install && npm start`
 - **Tests:** `cd backend && node --test` (10 tests, all passing at last run).
-- **Demo accounts** (password `123`): `customer1`, `customer2`, `mechanic1`, `manager1`.
+- **Demo accounts** (password `123`): `customer1`, `customer2`, `mechanic1`, `manager1`, and `customer3` (no vehicles, for demoing the first-time booking flow, NFR04). Each batch of demo accounts is created once per database, so a manager-deleted demo account isn't recreated on restart.
 - **Roles:** `customer`, `mechanic`, `manager`. Every API route checks the role on the server using signed bearer tokens.
 - **Email:** mocked. Every email is written to the `notifications` table (the outbox) and "sent" by logging `[MOCK EMAIL]` to the console.
 
@@ -76,7 +76,7 @@
 | NFR01 | Role-based access; deny and **log** other attempts | ✅ | `denyAccess()` in `backend/auth.js` logs `[ACCESS DENIED]` with method, path, username, role and reason. Tests are in `auth.test.js`. |
 | NFR02 | Reminder failure: retry up to 3 times over 24h, no data lost or changed | ✅ | Outbox retries every 8h; status becomes `failed` after 1 attempt plus 3 retries. Email data is separate from booking and history data. `MOCK_EMAIL_FAILURE_RATE` simulates failures for demos. |
 | NFR03 | 95% of vehicle history loads under 2s with 20 users | ❓ | Not measured yet; this is a Task 7 performance test. Possible improvement: index on `diagnostic_entries(vehicle_id)`. |
-| NFR04 | First-time customer books in 3 or fewer steps | ⚠️ | The flow is exactly 3 steps (Vehicle, Service & Slot, Confirm), but a **new customer has no vehicle** and must leave the flow to add one (R04). |
+| NFR04 | First-time customer books in 3 or fewer steps | ✅ | Since `ddc4319` a customer with no vehicles adds one **inside step 1** ("Save & continue" selects it and moves to step 2). Customers with vehicles get "+ Add a new vehicle". The stepper stays at 3 steps (R04, D12 fixed). Demo with `customer3`. |
 | NFR05 | Manager edits a checklist template and it applies to new jobs with no code change or redeploy | ✅ | Built in `1a5f413`. Saves create a new version, new jobs use the latest at once, completed jobs keep theirs, and simultaneous edits get a 409 conflict. |
 | NFR06 | Diagnostic entries never overwritten; edits stored as new entries referencing the original | ✅ | `PUT /diagnostics/:id` inserts a new row with `supersedes_entry_id`. Optional hardening: a DB trigger to block UPDATE/DELETE (R07). |
 
@@ -93,7 +93,7 @@
 | AC07 WOF **or service** reminder 14 days out | ✅ | Both, from `1b4d47b`. |
 | AC08 Reminder sent within 30 min of the daily check | ✅ | Check at 08:00 NZ; outbox runs every minute. |
 | AC09 Customer views their repair history | ✅ | |
-| AC10 Mechanic views all history **searched by plate** | ⚠️ | Dropdown only; no search box (R05). |
+| AC10 Mechanic views all history **searched by plate** | ✅ | "Search by number plate" box in Vehicle History for mechanics and managers (R05). Filters as you type, ignoring case, spaces and dashes. An exact match loads that vehicle's history; no match shows a message. |
 | AC11 Under 20 users, 95% of history loads under 2s | ❓ | Same as NFR03. |
 | AC12 Customer informed of approve/deny within 5 min | ✅ | `7dfd6c8`. |
 | AC13 Decided request cannot change and leaves the dashboard | ✅ | Only `pending` bookings can be decided. |
@@ -147,8 +147,6 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 
 | # | Item | Reqs | Size | Notes |
 |---|---|---|---|---|
-| R04 | Add a vehicle inside booking step 1 so a first-time customer still books in 3 steps | NFR04 | Small | Frontend only; reuse the add-vehicle form and `POST /api/vehicles`. |
-| R05 | Plate search box for mechanic/manager vehicle history | AC10 | Small | Frontend only; filter the already-loaded vehicle list. |
 | R06 | Consistent error handling (frontend `fetch` without try/catch, some routes with no DB error handling) | A1 limitations | Small–Medium | E.g. `loadHistory`, `loadHistoryVehicleOptions`, `decideBooking`. |
 | R07 | Optional: SQLite trigger blocking UPDATE/DELETE on `diagnostic_entries`; record which mechanic made each entry | NFR06, AC16 | Small | Moves the integrity rule from the app into the database. |
 | R08 | Optional: index on `diagnostic_entries(vehicle_id)` before performance testing | NFR03 | Tiny | |
@@ -161,6 +159,8 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | R02 | Average repair time in hours, both timestamps compared in NZ time, early finishes count as 0 | FR13, AC19 | `b75c42a` |
 | R03 | Jobs can be closed with unticked items: "Checklist Incomplete", completion % and ticked items stored | FR10, FR15, FR16, AC18 | `b75c42a` |
 | R09 | Login rate limit counts only failed attempts (fixes D17), plus fixes for D18 and D19 | NFR01, FR14 | `4a5d79c` |
+| R04 | Add a vehicle inside booking step 1 so a first-time customer still books in 3 steps (fixes D12); shared add-vehicle code for both forms; example placeholders (e.g. ABC123) in the vehicle fields | NFR04 | `ddc4319` |
+| R05 | Number plate search in Vehicle History for mechanics and managers | AC10 | R05 commit (pending) |
 
 ### Non-feature work still to do (later tasks)
 
@@ -192,7 +192,7 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | D09 | Cancelling at **exactly 24h** was allowed, contradicting AC05 | Medium | `< 24` comparison; AC05/AC06 overlap at the boundary | Inclusive check `<= 24h`; boundary unit tests added. **Fixed (Sam).** | `f39226d` |
 | D10 | Average repair time is **wrong or negative** | High | `completed_at` is stored as UTC (`datetime('now')`) while `slot_start` is local time, so durations are off by 12–13h | `completed_at` stored as UTC ISO; `slot_start` converted from NZ time by `workshopTime.js` before subtracting; old rows migrated. **Fixed.** Verified against an independently calculated duration (exact to the minute). | `b75c42a` |
 | D11 | Checklist compliance is **always 100%**; FR15/FR16 don't measure anything | Medium | Jobs can only be saved when every item is ticked | Jobs can be closed incomplete; compliance, incomplete count and avg completion use stored results. **Fixed.** | `b75c42a` |
-| D12 | A first-time customer cannot book in 3 steps (no vehicle yet) | Low | Adding a vehicle is on a separate page | **Open.** R04. | |
+| D12 | A first-time customer cannot book in 3 steps (no vehicle yet) | Low | Adding a vehicle is on a separate page | Vehicle can be added inside step 1, which then continues to step 2 with it selected. Verified in a headless browser as `customer3`: vehicle added, then booking completed in 3 steps (18/18 checks). **Fixed.** | `ddc4319` |
 | D13 | Some frontend screens break or hang when a request fails | Medium | `fetch` calls with no try/catch or `res.ok` check (AI-generated code assumed success) | **Open.** R06. | |
 | D14 | Auth tests run against the real `portal.db` | Low | Tests don't set `DB_PATH` | **Open.** Point at a temporary DB as `reminders.test.js` does. | |
 | D15 | Mechanic filter on "incomplete" uses the **approver**, not the mechanic doing the work | Low | Jobs are not assigned to mechanics; `decided_by` used as a stand-in | The incomplete count now comes from completed jobs, filtered by the mechanic who completed them. **Fixed.** | `b75c42a` |
@@ -251,6 +251,39 @@ The whole system was exercised over HTTP against a fresh throwaway database with
   Three layout issues were found and fixed before commit: stale card values after an invalid range, "(not done)" wrapping, and uneven mobile filter widths.
 - **Not tested:** the "Close as Checklist Incomplete?" confirm pop-up (a browser dialog); click it once in the real app.
 
+### Bug fixes and R04 (2026-10-11)
+
+- **Fix checks for `4a5d79c` (14/14 passed):**
+  - 15 successful logins in a row allowed; 10 failed allowed, the 11th throttled; once throttled, even the right password is blocked;
+  - bookings at 03:00, 08:00, 17:00 and 10:30 rejected with a message; 09:00 and 16:00 accepted;
+  - acceptance: approved 100% → rescheduled N/A (awaiting decision) → re-approved 100%.
+- **Regression:** the full walkthrough re-run after `4a5d79c` passed 118/118, with booking times moved inside workshop hours.
+- **R04 browser test (headless Edge, 18/18 passed):**
+  - `customer3`: form shown in step 1 with no Cancel; invalid plate shows the server message; saving moves to step 2 with the new vehicle selected; booking then completed in 3 steps;
+  - `customer1`: "+ Add a new vehicle" opens the form; Cancel returns to the dropdown;
+  - My Vehicles still adds vehicles, shows the duplicate-plate message, and new vehicles appear in the booking dropdown.
+- **Screenshot review** found and fixed a red Cancel button (should be the white secondary style), a wrapping button label, and an unpadded error box.
+- **Placeholders:** confirmed by screenshot to clear while typing (e.g. after typing "NZ7").
+- **`customer3` seeding:** checked on a copy of the real DB (added), a fresh DB (all 5 accounts), and after a delete plus restart (not recreated).
+- **Unit tests:** 15/15.
+
+### R05 plate search (2026-10-11)
+
+- **Browser test (headless Edge, 16/16 passed, no server errors).** Five vehicles were used, including `NZ 777` stored with a space.
+  - Mechanic:
+    - empty search lists every vehicle;
+    - "abc" narrows to ABC123 and ABC456 ("2 vehicles match") and shows the first one's history;
+    - "abc 123" finds ABC123 exactly and loads its history;
+    - "nz777" finds `NZ 777`;
+    - "zzz9" shows "No vehicle found…", the dropdown reads "No matching vehicles", and no history is shown;
+    - fast typing ("xyz789" one key at a time) ends on XYZ789 with the right history (only the latest request updates the page);
+    - clearing restores all vehicles; choosing from the dropdown still works.
+  - Manager: search shown and works.
+  - Customer: no search box; still only their own vehicles.
+  - Logging out and back in clears the search.
+- **Screenshot review** found and fixed two issues: the search box was narrower than the Vehicle dropdown, and the dropdown was blank on "no match".
+- **Unit tests:** 15/15.
+
 ---
 
 ## 6. Design decisions (what to say if asked)
@@ -265,6 +298,9 @@ The whole system was exercised over HTTP against a fresh throwaway database with
 - **Early finishes** count as 0 hours of repair time, not negative (team decision for D16), and are flagged in job details.
 - **Incomplete checklists:** mechanics confirm before closing a job with unticked items. The job keeps exactly which items were ticked, so job details show the truth, not the full template.
 - **Dashboard date range** defaults to the last 30 days. Job metrics use the completion date; acceptance rate uses the decision date.
+- **Workshop hours** (09:00–16:00 slots, on the hour) are enforced by the server on both booking and rescheduling (`isWorkshopSlot`), not just by which buttons the page shows.
+- **Plate search (AC10)** runs in the browser on the vehicle list already loaded for mechanics and managers. That's fine for a workshop-sized list; a very large fleet would need a server-side search endpoint. Plates are compared without case, spaces or dashes. A request counter makes sure only the latest history request updates the page. Customers don't get the box, because they only see their own few vehicles.
+- **Adding a vehicle inside booking (NFR04):** done within step 1 rather than as an extra step, so the stepper stays at 3. Both add-vehicle forms (booking and My Vehicles) share the same save and refresh code, so their validation and messages can't drift apart. The text fields show greyed example placeholders (`e.g. ABC123`, `e.g. Toyota`, `e.g. Corolla`) that disappear when typing and are never submitted.
 
 ---
 
@@ -327,13 +363,15 @@ Issues found in AI-generated code during this phase, and how they were caught:
 | `b75c42a` | Daniel | Manager dashboard: date range, real checklist compliance, repair time fix (R01–R03; D10, D11, D15, D16) |
 | `d3ce922` | Daniel | Notes, report draft and README updated after the dashboard bundle |
 | `4a5d79c` | Daniel | Fixes for D17, D18, D19 |
+| `ddc4319` | Daniel | Add a vehicle within booking step 1 (R04, NFR04, D12); `customer3` demo account; placeholders on the vehicle forms; notes updated for D17–D19 and C12 |
+| R05 commit (pending) | Daniel | Number plate search in Vehicle History (R05, AC10) |
 
 ---
 
 ## 10. Residual risks (for the release decision in Task 8)
 
 - Manager metrics were the biggest risk; R01–R03 and D10/D11/D16 are now fixed and verified. Remaining dashboard limitation: jobs aren't assigned to mechanics before completion, so per-mechanic acceptance uses whoever approved the booking.
-- **Open defects:** D12 (first-time customer 3 steps), D13 (frontend error handling), D14 (auth tests use the real DB).
+- **Open defects:** D13 (frontend error handling), D14 (auth tests use the real DB).
 - Email is mocked, so delivery to real inboxes is unverified.
 - The rate limiter and scheduler run inside a single process, so they would not work correctly across multiple servers.
 - Performance (NFR03) has not been measured.

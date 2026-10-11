@@ -235,6 +235,10 @@ function clearPrivateVehicleData() {
   document.getElementById('vehicle-select').innerHTML = '<option value="">Log in to view vehicles</option>';
   document.getElementById('history-vehicle-select').innerHTML = '<option value="">Log in to view vehicles</option>';
   document.getElementById('history-list').textContent = 'Log in to view vehicle history.';
+  historyVehicles = [];
+  document.getElementById('history-plate-search').value = '';
+  document.getElementById('history-search-message').textContent = '';
+  document.getElementById('history-search-panel').hidden = true;
 }
 
 accountButton.addEventListener('click', () => {
@@ -1631,20 +1635,30 @@ document.getElementById('job-details-modal').addEventListener('click', (event) =
 });
 
 // --- Vehicle History view -------------------------------------------------
+// Every vehicle, kept so the plate search (AC10) can filter without another request.
+let historyVehicles = [];
+
+// Plates are compared without spaces, dashes or case, so "abc 123" finds "ABC123".
+function normalisePlate(plate) {
+  return String(plate).toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
 async function loadHistoryVehicleOptions() {
+  const searchPanel = document.getElementById('history-search-panel');
   // Mechanics and managers can review history for every vehicle.
   if (['mechanic', 'manager'].includes(loggedInAccount?.role)) {
+    searchPanel.hidden = false;
     // This route returns all vehicles for approved staff users.
     const res = await fetch(`${API_BASE}/vehicles/all`, { headers: requestHeaders() });
     const data = await res.json();
-    loadHistoryVehicleSelect(data.vehicles || []);
-    const select = document.getElementById('history-vehicle-select');
-    // Load history for the first vehicle in the list.
-    if (select.value) loadHistory(select.value);
+    historyVehicles = data.vehicles || [];
+    // Re-apply any search still in the box (e.g. when returning to this view).
+    filterHistoryVehicles();
     return;
   }
 
   // Customers only see vehicles linked to their account.
+  searchPanel.hidden = true;
   await loadVehicleOptions('history-vehicle-select');
   const select = document.getElementById('history-vehicle-select');
   if (select.value) loadHistory(select.value);
@@ -1663,12 +1677,57 @@ function loadHistoryVehicleSelect(vehicles) {
   });
 }
 
+// Narrow the vehicle list to plates matching the search, then show history for
+// the exact match (or the first match) so the list and the history always agree.
+function filterHistoryVehicles() {
+  const select = document.getElementById('history-vehicle-select');
+  const message = document.getElementById('history-search-message');
+  const rawQuery = document.getElementById('history-plate-search').value.trim();
+  const query = normalisePlate(rawQuery);
+  const previous = select.value;
+
+  const matches = query
+    ? historyVehicles.filter((vehicle) => normalisePlate(vehicle.plate).includes(query))
+    : historyVehicles;
+  loadHistoryVehicleSelect(matches);
+
+  if (matches.length === 0) {
+    select.innerHTML = `<option value="">${query ? 'No matching vehicles' : 'No vehicles recorded yet'}</option>`;
+    message.textContent = query ? `No vehicle found with plate "${rawQuery}".` : 'No vehicles recorded yet.';
+    message.className = 'history-search-message is-empty';
+    loadHistory('');
+    return;
+  }
+
+  const exact = matches.find((vehicle) => normalisePlate(vehicle.plate) === query);
+  if (exact) {
+    select.value = String(exact.id);
+  } else if (matches.some((vehicle) => String(vehicle.id) === previous)) {
+    select.value = previous;
+  }
+  if (!query) {
+    message.textContent = '';
+  } else if (exact) {
+    message.textContent = `Showing ${exact.plate}.`;
+  } else {
+    message.textContent = `${matches.length} ${matches.length === 1 ? 'vehicle matches' : 'vehicles match'}. Choose one from the list or keep typing.`;
+  }
+  message.className = 'history-search-message';
+  loadHistory(select.value);
+}
+
+document.getElementById('history-plate-search').addEventListener('input', filterHistoryVehicles);
+
 document.getElementById('history-vehicle-select').addEventListener('change', (e) => {
   loadHistory(e.target.value);
 });
 
+// Searching fires several loads in a row; only the latest one may update the page.
+let historyRequestId = 0;
+
 async function loadHistory(vehicleId) {
   const container = document.getElementById('history-list');
+  const requestId = ++historyRequestId;
   if (!vehicleId) {
     container.textContent = '';
     return;
@@ -1679,6 +1738,7 @@ async function loadHistory(vehicleId) {
     headers: requestHeaders(),
   });
   const data = await res.json();
+  if (requestId !== historyRequestId) return;
 
   if (!res.ok) {
     container.textContent = data.error || 'Unable to load vehicle history.';

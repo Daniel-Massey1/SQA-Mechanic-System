@@ -87,7 +87,7 @@ The application is split into a static frontend and a Node.js backend. The backe
 - Approve or deny pending booking requests (the customer is notified)
 - Service checklists loaded for the booking's service type. Fully ticked jobs are saved as checklist compliant; a job can also be closed with items unticked (after confirming), saved as "Checklist Incomplete" with its completion %
 - Diagnostic entries, append-only: edits are stored as new entries linked to the original
-- Vehicle history for every vehicle
+- Vehicle history for every vehicle, with number plate search
 
 **Manager**
 - Quality dashboard: completed jobs, incomplete checklists, average repair time (hours), acceptance rate, checklist compliance and average checklist completion. Filter by mechanic and by date range (from/to, default last 30 days)
@@ -120,7 +120,7 @@ The application is split into a static frontend and a Node.js backend. The backe
 
 **As a mechanic**
 - **Mechanic Portal**: approve or deny requests, complete the service checklist for a confirmed booking, and add diagnostic entries.
-- **Vehicle History**: view and edit diagnostic entries for any vehicle.
+- **Vehicle History**: search by number plate, then view and edit diagnostic entries for any vehicle.
 
 **As a manager**
 - **Manager Dashboard**: view quality metrics, filter by mechanic and date range, and select a completed job to see its details and which checklist items were ticked.
