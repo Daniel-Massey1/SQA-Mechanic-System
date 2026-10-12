@@ -33,10 +33,18 @@ Login and sign-up requests are throttled per client IP. The current limiter is p
 
 ```powershell
 cd backend
-node --test
+npm test
 ```
 
-This runs every `*.test.js` file under `backend/` (authentication, access control, password hashing, rate limiting and booking cancellation rules).
+This runs every `*.test.js` file under `backend/` (authentication, access control, password hashing, rate limiting, and booking cancellation and rescheduling rules).
+
+Other checks:
+
+- `npm run check` - confirms the server and frontend scripts parse.
+- `npm run test:coverage` - runs the tests and prints a coverage table.
+- `npm run smoke` - starts the real server on a spare port with a throwaway database and checks that it responds.
+
+GitHub Actions runs all of these on every push and pull request (`.github/workflows/ci.yml`).
 
 
 ## Email notifications (mocked)
@@ -140,6 +148,7 @@ backend/
 	passwords.js      Password hashing
 	rateLimit.js      Login and sign-up throttling
 	*.test.js         Automated tests (also routes/*.test.js)
+	smoke.js          Smoke test that starts the real server
 	server.js         Express server and static file host
 	package.json      Backend scripts and dependencies
 frontend/

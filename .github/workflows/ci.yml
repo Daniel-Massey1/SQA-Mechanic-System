@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # Gate 1: dependencies install exactly as locked.
+      - name: Install dependencies
+        run: npm ci
+
+      # Gate 2: the server and frontend scripts parse.
+      - name: Syntax check
+        run: npm run check
+
+      # Gate 3: every automated test passes (coverage is reported, not enforced).
+      - name: Automated tests
+        run: npm run test:coverage
+
+      # Gate 4: the real server starts and answers.
+      - name: Smoke test
+        run: npm run smoke
