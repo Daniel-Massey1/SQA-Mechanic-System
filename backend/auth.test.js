@@ -1,5 +1,14 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
+
+// Use a throwaway database so these tests never read or change the real portal.db (D14).
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-test-'));
+process.env.DB_PATH = path.join(tempDir, 'test.db');
+process.env.NODE_ENV = 'test';
+
 const {
   authenticateAccount,
   createAuthToken,
@@ -7,6 +16,12 @@ const {
   requireAccount,
   verifyAuthToken,
 } = require('./auth');
+const { getDb } = require('./db/db');
+
+test.after(() => {
+  getDb().close();
+  fs.rmSync(tempDir, { recursive: true, force: true });
+});
 
 function createResponse() {
   return {

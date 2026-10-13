@@ -194,7 +194,7 @@ Record each one in the RTM with a version note, e.g. *"FR01 v2: changed because�
 | D11 | Checklist compliance is **always 100%**; FR15/FR16 don't measure anything | Medium | Jobs can only be saved when every item is ticked | Jobs can be closed incomplete; compliance, incomplete count and avg completion use stored results. **Fixed.** | `b75c42a` |
 | D12 | A first-time customer cannot book in 3 steps (no vehicle yet) | Low | Adding a vehicle is on a separate page | Vehicle can be added inside step 1, which then continues to step 2 with it selected. Verified in a headless browser as `customer3`: vehicle added, then booking completed in 3 steps (18/18 checks). **Fixed.** | `ddc4319` |
 | D13 | Some frontend screens break or hang when a request fails | Medium | `fetch` calls with no try/catch or `res.ok` check (AI-generated code assumed success); no JSON error handler on the server, so a thrown DB error returned Express's HTML page, which the frontend failed to read as JSON | Server: JSON error handler (logs `[ERROR] method path`), JSON 404 for unknown `/api` routes, JSON 400 for malformed bodies. Frontend: `loadVehicleOptions`, `cancelBooking`, `decideBooking`, `loadHistoryVehicleOptions` and `loadHistory` show a message instead of hanging; Approve/Deny disabled while saving and re-enabled on failure. **Verified before/after:** the same 15-check test (server stopped mid-session, plus a simulated DB failure) **passed 2/15 on the old code** (pages stuck on "Loading...", uncaught `SyntaxError: Unexpected token '<', "<!DOCTYPE"... is not valid JSON` and `TypeError: Failed to fetch`) and **15/15 after the fix**, with no uncaught errors. **Fixed.** | R06 commit (pending) |
-| D14 | Auth tests run against the real `portal.db` | Low | Tests don't set `DB_PATH` | **Open.** Point at a temporary DB as `reminders.test.js` does. | |
+| D14 | Auth tests run against the real `portal.db` | Low | Tests don't set `DB_PATH` | `auth.test.js` now sets `DB_PATH` to a temporary database before loading the app, and removes it afterwards. **Fixed.** | Task 4 tests commit (pending) |
 | D15 | Mechanic filter on "incomplete" uses the **approver**, not the mechanic doing the work | Low | Jobs are not assigned to mechanics; `decided_by` used as a stand-in | The incomplete count now comes from completed jobs, filtered by the mechanic who completed them. **Fixed.** | `b75c42a` |
 | D16 | A mechanic can complete a job **before its booked slot**, giving a **negative** repair duration (seen: −7,970 min for a job completed 5 days early) | High | No check that the slot has started before a checklist is saved. FR13 measures from the booked slot, so finishing early always gives a negative time. Combined with D10, which added about 13h of the error | **Team decision:** early finishes are allowed and count as 0 hours; job details flag "completed before the booked time". **Fixed.** | `b75c42a` |
 | D17 | Login rate limit counts **successful** logins as well as failed ones, so switching roles about 10 times in 15 min locks you out (429) | Medium (demo risk) | `loginLimiter` (10 requests per 15 min per IP) counts every request to `/api/auth/login` | New `countFailuresOnly` option; login counts only responses ≥ 400. Verified: 15 successful logins in a row allowed; 10 wrong passwords allowed, the 11th gets 429 (brute-force protection kept). **Fixed.** | `4a5d79c` |
@@ -327,11 +327,16 @@ The whole system was exercised over HTTP against a fresh throwaway database with
 
 ## 7. Testing notes
 
-- **Current automated tests (15, all passing on 2026-10-11):**
+- **Current automated tests (56, all passing on 2026-10-13):**
+  - `backend/routes/cancel.test.js`: 7 tests (cancellation over HTTP, TC11/TC12).
+  - `backend/routes/mechanics.test.js`: 9 tests (approve/deny, diagnostics, append-only edits, TC13/TC14/TC17/TC18).
+  - `backend/access.test.js`: 21 tests (role-based access table plus denial logging, TC20).
+  - `backend/apiTestHelper.js`: shared setup for the API tests (temporary DB, spare port).
+  - `backend/smoke.js`: smoke test, run with `npm run smoke` (not part of `npm test`).
   - `backend/routes/reschedule.test.js`: 5 tests (Sam: reschedule rules, using a temporary DB).
   - `backend/auth.test.js`: 5 tests (auth and access).
   - `backend/security.test.js`: 2 tests (password hashing, rate limiting).
-  - `backend/routes/bookings.test.js`: 3 tests (24h boundary, Sam).
+  - `backend/routes/bookings.test.js`: 7 tests (24h boundary, data-driven; originally 3 by Sam).
 - **Saved for later: `git stash@{0}`.** Holds `backend/reminders.test.js` (7 tests: NZ date, 8am timing, no duplicates, retry timing, retry success, sender crash) and an `npm test` script.
   - ⚠️ The stash also holds **older versions** of other files. Restore **only** the test file: `git checkout "stash@{0}^3" -- backend/reminders.test.js`. Then add `"test": "node --test"` to `backend/package.json` by hand.
 - **Manual verification so far:** each feature was checked by running the server against a **throwaway copy** of the database (`DB_PATH=... PORT=3099 node server.js`) and calling the API with a script. Checked so far:
@@ -393,8 +398,8 @@ Issues found in AI-generated code during this phase, and how they were caught:
 ## 10. Residual risks (for the release decision in Task 8)
 
 - Manager metrics were the biggest risk; R01–R03 and D10/D11/D16 are now fixed and verified. Remaining dashboard limitation: jobs aren't assigned to mechanics before completion, so per-mechanic acceptance uses whoever approved the booking.
-- **Open defect:** D14 (auth tests use the real DB; low impact).
+- No open defects (D14 fixed 2026-10-13).
 - Email is mocked, so delivery to real inboxes is unverified.
 - The rate limiter and scheduler run inside a single process, so they would not work correctly across multiple servers.
 - Performance (NFR03) has not been measured.
-- Only a few automated tests cover routes; most behaviour has been checked by throwaway scripts and screenshots, not a committed test suite.
+- 56 automated tests now cover auth, access control, cancellation, rescheduling, approvals and diagnostics. The dashboard metrics, checklist editor and reminders are still only checked by throwaway scripts and screenshots.

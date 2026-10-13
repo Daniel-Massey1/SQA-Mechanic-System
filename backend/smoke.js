@@ -94,6 +94,15 @@ test('protected routes refuse requests with no token', async () => {
   assert.equal(response.status, 401);
 });
 
-test('a demo account can log in', { todo: true }, async () => {
-  // TODO: POST `${baseUrl}/api/auth/login` with a demo account and assert on the response.
+test('a demo account can log in', async () => {
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'customer1', password: '123' }),
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.account.role, 'customer');
+  assert.equal(typeof body.token, 'string');
 });
