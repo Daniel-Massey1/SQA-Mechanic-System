@@ -43,6 +43,7 @@ Other checks:
 - `npm run check` - confirms the server and frontend scripts parse.
 - `npm run test:coverage` - runs the tests and prints a coverage table.
 - `npm run smoke` - starts the real server on a spare port with a throwaway database and checks that it responds.
+- `npm run perf` - performance test: 20 simulated users request vehicle history for 10 seconds, and it passes if at least 95% of requests finish within 2 seconds (NFR03). Not run by CI.
 
 GitHub Actions runs all of these on every push and pull request (`.github/workflows/ci.yml`).
 

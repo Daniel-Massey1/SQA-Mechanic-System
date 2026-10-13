@@ -4,8 +4,8 @@ const { isWithinCancellationWindow } = require('./bookings');
 
 const HOUR_MS = 60 * 60 * 1000;
 
-// Data-driven: each row is [hours before the appointment, is cancellation blocked?].
-// The rule is "within 24 hours (inclusive)", so 24 is the boundary.
+// Data driven: each row is [hours before the appointment, is cancellation blocked?].
+// The rule is within 24 hours , so 24 is the boundary.
 const cancellationCases = [
   [0, true],
   [1, true],
