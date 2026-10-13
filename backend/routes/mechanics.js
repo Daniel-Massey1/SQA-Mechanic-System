@@ -89,9 +89,9 @@ router.get('/checklists/:serviceType', requireAccount, (req, res) => {
  * Body: { bookingId, serviceType, checklistId, completedItems: string[] }
  *
  * Closes the job and records exactly which checklist items were ticked.
- *  - FR10: every item ticked -> 'Checklist Compliant'.
+ *  - FR11: every item ticked -> 'Checklist Compliant'.
  *  - AC18: otherwise 'Checklist Incomplete', with the completion percentage stored
- *    against the job (and its mechanic) for the manager dashboard (FR15/FR16).
+ *    against the job (and its mechanic) for the manager dashboard (FR16/FR17).
  */
 router.post('/jobs/checklist-compliance', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {
