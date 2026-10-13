@@ -170,7 +170,7 @@ function getKnownMechanics(db) {
   return [...names].sort();
 }
 
-// --- Quality dashboard (FR11-FR17) -----------------------------------------
+// --- Quality dashboard (FR12-FR18) -----------------------------------------
 
 const DEFAULT_RANGE_DAYS = 30;
 
@@ -235,13 +235,13 @@ function percent(part, whole) {
  *
  * Summary cards for jobs completed in the date range (bookings decided in the
  * range for the acceptance rate):
- *  - totalCompletedJobs (FR11)
- *  - averageRepairTimeHours: booked slot to completion (FR13)
- *  - acceptanceRatePercent: approved / decided requests (FR14)
- *  - checklistCompliancePercent: compliant jobs / completed jobs (FR15)
- *  - incompleteChecklistCount: completed jobs with unticked items (FR16)
+ *  - totalCompletedJobs (FR12)
+ *  - averageRepairTimeHours: booked slot to completion (FR14)
+ *  - acceptanceRatePercent: approved / decided requests (FR15)
+ *  - checklistCompliancePercent: compliant jobs / completed jobs (FR16)
+ *  - incompleteChecklistCount: completed jobs with unticked items (FR17)
  *  - averageChecklistCompletionPercent: mean stored completion % (AC18, AC19)
- * All can be filtered to one mechanic (FR17).
+ * All can be filtered to one mechanic (FR18).
  */
 router.get('/dashboard', (req, res) => {
   const range = resolveDateRange(req.query);
