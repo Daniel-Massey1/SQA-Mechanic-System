@@ -954,21 +954,21 @@ async function loadMechanicPortal() {
   container.textContent = 'Loading approval requests...';
 
   try {
-    const [res, vehiclesRes, upcomingRes] = await Promise.all([
+    const [res, vehiclesRes, openJobsRes] = await Promise.all([
       fetch(`${API_BASE}/mechanics/dashboard`, { headers: requestHeaders() }),
       fetch(`${API_BASE}/vehicles/all`, { headers: requestHeaders() }),
-      fetch(`${API_BASE}/mechanics/upcoming`, { headers: requestHeaders() }),
+      fetch(`${API_BASE}/mechanics/open-jobs`, { headers: requestHeaders() }),
     ]);
     const data = await res.json();
     const vehiclesData = await vehiclesRes.json();
-    const upcomingData = await upcomingRes.json();
+    const openJobsData = await openJobsRes.json();
 
     if (!res.ok) {
       container.textContent = data.error || 'Unable to load mechanic appointments.';
       return;
     }
     loadDiagnosticVehicleOptions(vehiclesData.vehicles || []);
-    loadChecklistBookingOptions(upcomingData.bookings || []);
+    loadChecklistBookingOptions(openJobsData.bookings || []);
     updateChecklistServiceType();
 
     container.innerHTML = '';
@@ -1002,10 +1002,10 @@ async function loadMechanicPortal() {
   }
 }
 
-// Fill the job form with approved upcoming bookings.
+// Fill the job form with confirmed bookings that have not been closed yet.
 function loadChecklistBookingOptions(bookings) {
   const select = document.getElementById('checklist-booking-id');
-  select.innerHTML = '<option value="">Select an upcoming booking</option>';
+  select.innerHTML = '<option value="">Select a confirmed booking</option>';
   bookings.forEach((booking) => {
     const option = document.createElement('option');
     option.value = booking.id;

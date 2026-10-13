@@ -51,6 +51,25 @@ router.get('/upcoming', requireAccount, (req, res) => {
   return res.json({ bookings });
 });
 
+// Return every confirmed booking that still needs its checklist closed, including
+// ones whose start time has passed (a job is normally closed after it starts, D20).
+router.get('/open-jobs', requireAccount, (req, res) => {
+  if (req.account.role !== 'mechanic') {
+    return denyAccess(req, res, 'Only mechanic accounts can view open jobs.');
+  }
+
+  const bookings = getDb().prepare(
+    `SELECT bookings.*, vehicles.plate, vehicles.make, vehicles.model, customers.name AS customer_name
+     FROM bookings
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     JOIN customers ON customers.id = vehicles.customer_id
+     WHERE bookings.status = 'confirmed'
+     ORDER BY datetime(bookings.slot_start) ASC`
+  ).all();
+
+  return res.json({ bookings });
+});
+
 // Return bookings completed by a mechanic.
 router.get('/completed', requireAccount, (req, res) => {
   if (req.account.role !== 'mechanic') {

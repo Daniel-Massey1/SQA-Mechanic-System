@@ -11,6 +11,7 @@ const {
   stopApi,
   vehicleIdOf,
 } = require('../apiTestHelper');
+const { workshopLocalToUtc } = require('../services/workshopTime');
 
 test.before(startApi);
 test.after(stopApi);
@@ -141,4 +142,48 @@ test('editing a diagnostic entry adds a new entry and leaves the original unchan
   const history = await api('GET', `/api/vehicles/${vehicleId}/history`, { as: 'mechanic1' });
   const original = history.body.history.find((entry) => entry.id === originalId);
   assert.equal(original.is_superseded, true);
+});
+
+test('a confirmed booking whose start time has passed is still listed as an open job', async () => {
+  const pastId = Number(insertBooking(slotString(-2, 10)));
+  const pendingId = Number(insertBooking(slotString(3, 10), { status: 'pending' }));
+
+  const openJobs = await api('GET', '/api/mechanics/open-jobs', { as: 'mechanic1' });
+  const upcoming = await api('GET', '/api/mechanics/upcoming', { as: 'mechanic1' });
+
+  assert.equal(openJobs.status, 200);
+  const openIds = openJobs.body.bookings.map((booking) => booking.id);
+  assert.equal(openIds.includes(pastId), true);
+  assert.equal(openIds.includes(pendingId), false);
+  // The schedule view is unchanged: it only shows bookings still to come.
+  assert.equal(upcoming.body.bookings.some((booking) => booking.id === pastId), false);
+});
+
+test('customers cannot view open jobs', async () => {
+  const { status } = await api('GET', '/api/mechanics/open-jobs', { as: 'customer1' });
+
+  assert.equal(status, 403);
+});
+
+test('closing a job after its booked time gives the dashboard a real repair time', async () => {
+  const slot = slotString(-1, 9);
+  const id = Number(insertBooking(slot));
+  const { body: { checklist } } = await api('GET', '/api/mechanics/checklists/basic_service', { as: 'mechanic1' });
+
+  const closed = await api('POST', '/api/mechanics/jobs/checklist-compliance', {
+    as: 'mechanic1',
+    body: { bookingId: id, serviceType: 'basic_service', checklistId: checklist.id, completedItems: checklist.items },
+  });
+  const dashboard = await api('GET', '/api/manager/dashboard', { as: 'manager1' });
+
+  assert.equal(closed.status, 201);
+  assert.equal(getBooking(id).status, 'completed');
+  // Booked slot to completion, worked out the same way a person would by hand.
+  const expectedHours = (new Date(getBooking(id).completed_at) - workshopLocalToUtc(slot)) / (60 * 60 * 1000);
+  assert.ok(expectedHours > 0);
+  assert.ok(Math.abs(dashboard.body.totals.averageRepairTimeHours - expectedHours) < 0.1);
+
+  // Once closed, the job leaves the open list.
+  const openJobs = await api('GET', '/api/mechanics/open-jobs', { as: 'mechanic1' });
+  assert.equal(openJobs.body.bookings.some((booking) => booking.id === id), false);
 });
