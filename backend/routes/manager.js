@@ -207,6 +207,87 @@ function repairMinutes(slotStart, completedAt) {
   return Math.max(0, Math.round((end - start) / (1000 * 60)));
 }
 
+function getOverdueBookings(db, now = new Date()) {
+  const bookings = db.prepare(
+    `SELECT bookings.*, vehicles.plate, vehicles.make, vehicles.model, customers.name AS customer_name
+     FROM bookings
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     JOIN customers ON customers.id = vehicles.customer_id
+     WHERE bookings.status = 'confirmed'`
+  ).all();
+
+  return bookings
+    .map((booking) => ({ booking, slotStart: workshopLocalToUtc(booking.slot_start) }))
+    .filter(({ slotStart }) => slotStart && slotStart < now)
+    .sort((left, right) => left.slotStart - right.slotStart)
+    .map(({ booking }) => booking);
+}
+
+function getRepeatRepairAnalysis(db) {
+  const repairRows = db.prepare(
+    `SELECT vehicles.id AS vehicle_id, vehicles.plate, vehicles.make, vehicles.model,
+            bookings.service_type, COUNT(*) AS completed_booking_count
+     FROM bookings
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     WHERE bookings.status = 'completed'
+     GROUP BY vehicles.id, bookings.service_type
+     ORDER BY vehicles.plate COLLATE NOCASE, bookings.service_type`
+  ).all();
+  const repairsByVehicle = new Map();
+  repairRows.forEach((row) => {
+    if (!repairsByVehicle.has(row.vehicle_id)) {
+      repairsByVehicle.set(row.vehicle_id, {
+        vehicleId: row.vehicle_id,
+        plate: row.plate,
+        make: row.make,
+        model: row.model,
+        completedBookingCount: 0,
+        serviceTypeCounts: [],
+      });
+    }
+    const vehicle = repairsByVehicle.get(row.vehicle_id);
+    vehicle.completedBookingCount += row.completed_booking_count;
+    vehicle.serviceTypeCounts.push({
+      serviceType: row.service_type,
+      completedBookingCount: row.completed_booking_count,
+    });
+  });
+  const repeatRepairs = [...repairsByVehicle.values()]
+    .filter((vehicle) => vehicle.completedBookingCount >= 2);
+
+  const repeatedDiagnosticDescriptions = db.prepare(
+    `WITH current_entries AS (
+       SELECT diagnostic_entries.id, diagnostic_entries.vehicle_id, diagnostic_entries.fault_description,
+              COALESCE(diagnostic_entries.supersedes_entry_id, diagnostic_entries.id) AS root_entry_id
+       FROM diagnostic_entries
+       WHERE NOT EXISTS (
+         SELECT 1
+         FROM diagnostic_entries AS newer
+         WHERE COALESCE(newer.supersedes_entry_id, newer.id)
+                 = COALESCE(diagnostic_entries.supersedes_entry_id, diagnostic_entries.id)
+           AND newer.id > diagnostic_entries.id
+       )
+     )
+     SELECT vehicles.id AS vehicle_id, vehicles.plate, vehicles.make, vehicles.model,
+            MIN(current_entries.fault_description) AS description,
+            COUNT(*) AS entry_count
+     FROM current_entries
+     JOIN vehicles ON vehicles.id = current_entries.vehicle_id
+     GROUP BY vehicles.id, LOWER(TRIM(current_entries.fault_description))
+     HAVING COUNT(*) >= 2
+     ORDER BY vehicles.plate COLLATE NOCASE, LOWER(TRIM(current_entries.fault_description))`
+  ).all();
+
+  return {
+    repeatRepairSummary: {
+      vehicleCount: repeatRepairs.length,
+      completedBookingCount: repeatRepairs.reduce((total, vehicle) => total + vehicle.completedBookingCount, 0),
+    },
+    repeatRepairs,
+    repeatedDiagnosticDescriptions,
+  };
+}
+
 // Completed jobs in the range, optionally for one mechanic, newest first.
 function getCompletedJobs(db, range, mechanic) {
   return db.prepare(
@@ -276,6 +357,7 @@ router.get('/dashboard', (req, res) => {
     mechanics: getKnownMechanics(db),
     selectedMechanic: mechanic,
     range: { from: range.from, to: range.to },
+    overdueBookings: getOverdueBookings(db),
     totals: {
       totalCompletedJobs,
       incompleteChecklistCount: totalCompletedJobs - compliantJobs,
@@ -285,6 +367,61 @@ router.get('/dashboard', (req, res) => {
       averageChecklistCompletionPercent,
     },
   });
+});
+
+router.get('/repeat-analysis', (req, res) => {
+  return res.json(getRepeatRepairAnalysis(getDb()));
+});
+
+router.get('/mechanic-workload', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(
+    `SELECT jobs.mechanic_name,
+            COUNT(*) AS completed_job_count,
+            SUM(CASE WHEN jobs.checklist_compliant IS NOT NULL THEN 1 ELSE 0 END) AS checklist_evaluated_job_count,
+            SUM(CASE WHEN jobs.checklist_compliant = 1 THEN 1 ELSE 0 END) AS compliant_job_count,
+            SUM(CASE WHEN jobs.completion_percent BETWEEN 0 AND 100 THEN 1 ELSE 0 END) AS completion_percent_job_count,
+            AVG(CASE WHEN jobs.completion_percent BETWEEN 0 AND 100 THEN jobs.completion_percent END) AS average_completion_percent
+     FROM jobs
+     JOIN bookings ON bookings.id = jobs.booking_id
+     WHERE bookings.status = 'completed'
+       AND jobs.mechanic_name IS NOT NULL
+       AND TRIM(jobs.mechanic_name) != ''
+     GROUP BY jobs.mechanic_name
+     ORDER BY jobs.mechanic_name COLLATE NOCASE`
+  ).all();
+  const unassignedCompletedBookingCount = db.prepare(
+    `SELECT COUNT(*) AS count
+     FROM bookings
+     WHERE bookings.status = 'completed'
+       AND NOT EXISTS (
+         SELECT 1 FROM jobs
+         WHERE jobs.booking_id = bookings.id
+           AND jobs.mechanic_name IS NOT NULL
+           AND TRIM(jobs.mechanic_name) != ''
+       )`
+  ).get().count;
+
+  const mechanics = rows.map((row) => {
+    const checklistEvaluatedJobCount = row.checklist_evaluated_job_count;
+    return {
+      mechanicName: row.mechanic_name,
+      completedJobCount: row.completed_job_count,
+      checklistMetrics: {
+        evaluatedJobCount: checklistEvaluatedJobCount,
+        compliantJobCount: row.compliant_job_count,
+        compliancePercent: checklistEvaluatedJobCount > 0
+          ? Math.round((row.compliant_job_count / checklistEvaluatedJobCount) * 100)
+          : null,
+        completionPercentJobCount: row.completion_percent_job_count,
+        averageCompletionPercent: row.average_completion_percent === null
+          ? null
+          : Math.round(row.average_completion_percent * 10) / 10,
+      },
+    };
+  });
+
+  return res.json({ mechanics, unassignedCompletedBookingCount });
 });
 
 // Completed jobs for the dashboard's job list, using the same filters as the cards.

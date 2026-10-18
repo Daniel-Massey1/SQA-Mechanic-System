@@ -6,6 +6,7 @@ const DEFAULT_CUSTOMER_ID = 1;
 const STORED_SESSION_KEY = 'mechanics-portal-session';
 let loggedInAccount = null;
 let authToken = null;
+let managerHistoryVehicleId = null;
 
 function restoreLoggedInAccount() {
   localStorage.removeItem('mechanics-portal-account');
@@ -304,7 +305,11 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
     if (btn.dataset.view === 'customer-home') loadCustomerDashboard();
     if (btn.dataset.view === 'vehicles') loadCustomerVehicles();
     if (btn.dataset.view === 'booking' && loggedInAccount?.role === 'customer') loadAvailableTimeSlots();
-    if (btn.dataset.view === 'history') loadHistoryVehicleOptions();
+    if (btn.dataset.view === 'history') {
+      const vehicleId = managerHistoryVehicleId;
+      managerHistoryVehicleId = null;
+      loadHistoryVehicleOptions(vehicleId);
+    }
     if (btn.dataset.view === 'mechanic') loadMechanicPortal();
     if (btn.dataset.view === 'manager') loadManagerPortal();
   });
@@ -1215,6 +1220,206 @@ function formatPercent(value) {
   return value === null || value === undefined ? 'N/A' : `${value}%`;
 }
 
+let managerBookings = [];
+let managerBookingsState = 'loading';
+let managerBookingsError = '';
+
+function renderManagerBookings() {
+  const container = document.getElementById('manager-bookings-list');
+  if (managerBookingsState === 'loading') {
+    container.textContent = 'Loading bookings...';
+    return;
+  }
+  if (managerBookingsState === 'error') {
+    container.textContent = managerBookingsError;
+    return;
+  }
+
+  const selectedStatus = document.getElementById('manager-booking-status-filter').value;
+  const bookings = selectedStatus
+    ? managerBookings.filter((booking) => booking.status === selectedStatus)
+    : managerBookings.filter((booking) => booking.status !== 'completed');
+  container.replaceChildren();
+  if (bookings.length === 0) {
+    container.textContent = selectedStatus ? 'No bookings match this status.' : 'No non-completed bookings found.';
+    return;
+  }
+
+  bookings.forEach((booking) => {
+    const card = document.createElement('div');
+    card.className = 'booking-card';
+    const reference = booking.confirmation_ref || booking.id;
+    card.innerHTML = `
+      <strong>${escapeHTML(booking.plate)} - ${escapeHTML(booking.make)} ${escapeHTML(booking.model)}</strong><br />
+      Ref: ${escapeHTML(reference)}<br />
+      ${escapeHTML(booking.service_type.replace('_', ' '))} on ${escapeHTML(new Date(booking.slot_start.replace(' ', 'T')).toLocaleString())}
+      <span class="badge badge-${escapeHTML(booking.status)}">${escapeHTML(booking.status)}</span>
+    `;
+
+    const detailsButton = document.createElement('button');
+    detailsButton.type = 'button';
+    detailsButton.className = 'details-btn';
+    detailsButton.textContent = 'View Details';
+    detailsButton.addEventListener('click', () => showBookingDetails(booking));
+    card.appendChild(detailsButton);
+    container.appendChild(card);
+  });
+}
+
+async function loadManagerBookings() {
+  managerBookingsState = 'loading';
+  managerBookingsError = '';
+  renderManagerBookings();
+
+  try {
+    const response = await fetch(`${API_BASE}/bookings/all`, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      managerBookingsState = 'error';
+      managerBookingsError = data.error || 'Unable to load bookings.';
+      renderManagerBookings();
+      return;
+    }
+    if (!Array.isArray(data.bookings)) {
+      managerBookingsState = 'error';
+      managerBookingsError = 'Unable to load bookings.';
+      renderManagerBookings();
+      return;
+    }
+
+    managerBookings = data.bookings;
+    managerBookingsState = 'ready';
+    renderManagerBookings();
+  } catch {
+    managerBookingsState = 'error';
+    managerBookingsError = 'Could not reach the server. Please try again.';
+    renderManagerBookings();
+  }
+}
+
+async function loadManagerRepeatAnalysis() {
+  const container = document.getElementById('manager-repeat-analysis');
+  container.textContent = 'Loading repeat repair analysis...';
+
+  try {
+    const response = await fetch(`${API_BASE}/manager/repeat-analysis`, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      container.textContent = data.error || 'Unable to load repeat repair analysis.';
+      return;
+    }
+
+    container.replaceChildren();
+    const summary = document.createElement('p');
+    summary.textContent = `${data.repeatRepairSummary.vehicleCount} vehicle${data.repeatRepairSummary.vehicleCount === 1 ? '' : 's'} with repeat repairs (${data.repeatRepairSummary.completedBookingCount} completed bookings across those vehicles).`;
+    container.appendChild(summary);
+
+    if (data.repeatRepairs.length === 0 && data.repeatedDiagnosticDescriptions.length === 0) {
+      const empty = document.createElement('p');
+      empty.textContent = 'No repeat repairs or repeated diagnostic descriptions found.';
+      container.appendChild(empty);
+      return;
+    }
+
+    if (data.repeatRepairs.length > 0) {
+      const heading = document.createElement('h4');
+      heading.textContent = 'Vehicles with repeat repairs';
+      container.appendChild(heading);
+      data.repeatRepairs.forEach((vehicle) => {
+        const card = document.createElement('div');
+        card.className = 'booking-card';
+        const serviceCounts = vehicle.serviceTypeCounts
+          .map((item) => `${item.serviceType.replace('_', ' ')}: ${item.completedBookingCount}`)
+          .join(', ');
+        card.innerHTML = `
+          <strong>${escapeHTML(vehicle.plate)} - ${escapeHTML(vehicle.make)} ${escapeHTML(vehicle.model)}</strong><br />
+          Completed bookings: ${escapeHTML(vehicle.completedBookingCount)}<br />
+          By service type: ${escapeHTML(serviceCounts)}
+        `;
+        const historyButton = document.createElement('button');
+        historyButton.type = 'button';
+        historyButton.className = 'details-btn';
+        historyButton.textContent = 'View diagnostic history';
+        historyButton.addEventListener('click', () => openManagerVehicleHistory(vehicle.vehicleId));
+        card.appendChild(historyButton);
+        container.appendChild(card);
+      });
+    }
+
+    if (data.repeatedDiagnosticDescriptions.length > 0) {
+      const heading = document.createElement('h4');
+      heading.textContent = 'Repeated diagnostic descriptions';
+      container.appendChild(heading);
+      data.repeatedDiagnosticDescriptions.forEach((entry) => {
+        const card = document.createElement('div');
+        card.className = 'history-card';
+        card.innerHTML = `
+          <strong>${escapeHTML(entry.plate)} - ${escapeHTML(entry.make)} ${escapeHTML(entry.model)}</strong><br />
+          ${escapeHTML(entry.description)}<br />
+          Matching current entries: ${escapeHTML(entry.entry_count)}
+        `;
+        const historyButton = document.createElement('button');
+        historyButton.type = 'button';
+        historyButton.className = 'details-btn';
+        historyButton.textContent = 'View diagnostic history';
+        historyButton.addEventListener('click', () => openManagerVehicleHistory(entry.vehicle_id));
+        card.appendChild(historyButton);
+        container.appendChild(card);
+      });
+    }
+  } catch {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
+async function loadManagerMechanicWorkload() {
+  const container = document.getElementById('manager-mechanic-workload');
+  container.textContent = 'Loading mechanic workload...';
+
+  try {
+    const response = await fetch(`${API_BASE}/manager/mechanic-workload`, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      container.textContent = data.error || 'Unable to load mechanic workload.';
+      return;
+    }
+
+    container.replaceChildren();
+    if (data.unassignedCompletedBookingCount > 0) {
+      const unassigned = document.createElement('p');
+      unassigned.textContent = `${data.unassignedCompletedBookingCount} completed booking${data.unassignedCompletedBookingCount === 1 ? ' has' : 's have'} no mechanic assignment and are not included in mechanic totals.`;
+      container.appendChild(unassigned);
+    }
+    if (data.mechanics.length === 0) {
+      const empty = document.createElement('p');
+      empty.textContent = 'No completed jobs with mechanic assignments are available.';
+      container.appendChild(empty);
+      return;
+    }
+
+    data.mechanics.forEach((mechanic) => {
+      const card = document.createElement('div');
+      card.className = 'booking-card';
+      const metrics = mechanic.checklistMetrics;
+      const compliance = metrics.compliancePercent === null
+        ? 'Unavailable (no recorded checklist evaluations)'
+        : `${metrics.compliancePercent}% (${metrics.compliantJobCount}/${metrics.evaluatedJobCount} evaluated jobs)`;
+      const averageCompletion = metrics.averageCompletionPercent === null
+        ? 'Unavailable (no recorded completion percentages)'
+        : `${metrics.averageCompletionPercent}% (${metrics.completionPercentJobCount} recorded jobs)`;
+      card.innerHTML = `
+        <strong>${escapeHTML(mechanic.mechanicName)}</strong><br />
+        Completed jobs: ${escapeHTML(mechanic.completedJobCount)}<br />
+        Checklist compliance: ${escapeHTML(compliance)}<br />
+        Average checklist completion: ${escapeHTML(averageCompletion)}
+      `;
+      container.appendChild(card);
+    });
+  } catch {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
 async function loadManagerAccounts() {
   const container = document.getElementById('manager-account-list');
   container.textContent = 'Loading accounts...';
@@ -1494,13 +1699,18 @@ document.getElementById('checklist-editor-form').addEventListener('submit', asyn
 async function loadManagerPortal() {
   loadManagerAccounts();
   loadManagerChecklists();
+  loadManagerBookings();
+  loadManagerRepeatAnalysis();
+  loadManagerMechanicWorkload();
   const filterSelect = document.getElementById('manager-mechanic-filter');
   const fromInput = document.getElementById('manager-date-from');
   const toInput = document.getElementById('manager-date-to');
   const rangeSummary = document.getElementById('manager-range-summary');
   const selectedMechanic = filterSelect.value;
   const jobsContainer = document.getElementById('manager-jobs-list');
+  const overdueContainer = document.getElementById('manager-overdue-jobs');
   jobsContainer.textContent = 'Loading...';
+  overdueContainer.textContent = 'Loading overdue jobs...';
 
   try {
     // Empty dates let the server apply its default (the last 30 days).
@@ -1523,6 +1733,7 @@ async function loadManagerPortal() {
       ['stat-total-completed', 'stat-incomplete', 'stat-avg-time', 'stat-acceptance', 'stat-compliance', 'stat-avg-completion']
         .forEach((id) => { document.getElementById(id).textContent = '-'; });
       jobsContainer.textContent = '';
+      overdueContainer.textContent = '';
       return;
     }
 
@@ -1550,6 +1761,24 @@ async function loadManagerPortal() {
     document.getElementById('stat-compliance').textContent = formatPercent(totals.checklistCompliancePercent);
     document.getElementById('stat-avg-completion').textContent = formatPercent(totals.averageChecklistCompletionPercent);
 
+    overdueContainer.innerHTML = '';
+    if (dashboardData.overdueBookings.length === 0) {
+      overdueContainer.textContent = 'No overdue scheduled jobs.';
+    } else {
+      dashboardData.overdueBookings.forEach((booking) => {
+        const card = document.createElement('div');
+        card.className = 'booking-card overdue-job-card';
+        card.innerHTML = `
+          <strong>${escapeHTML(booking.plate)} - ${escapeHTML(booking.make)} ${escapeHTML(booking.model)}</strong><br />
+          Customer: ${escapeHTML(booking.customer_name)}<br />
+          Service: ${escapeHTML(booking.service_type.replace('_', ' '))}<br />
+          Scheduled: ${escapeHTML(new Date(booking.slot_start.replace(' ', 'T')).toLocaleString())}
+          <span class="badge badge-pending">Overdue</span>
+        `;
+        overdueContainer.appendChild(card);
+      });
+    }
+
     jobsContainer.innerHTML = '';
     if (jobsData.jobs.length === 0) {
       jobsContainer.textContent = 'No jobs were completed in this date range.';
@@ -1570,12 +1799,14 @@ async function loadManagerPortal() {
     });
   } catch (err) {
     jobsContainer.textContent = 'Could not reach the server. Please try again.';
+    overdueContainer.textContent = 'Could not reach the server. Please try again.';
   }
 }
 
 document.getElementById('manager-mechanic-filter').addEventListener('change', loadManagerPortal);
 document.getElementById('manager-date-from').addEventListener('change', loadManagerPortal);
 document.getElementById('manager-date-to').addEventListener('change', loadManagerPortal);
+document.getElementById('manager-booking-status-filter').addEventListener('change', renderManagerBookings);
 document.getElementById('manager-date-reset').addEventListener('click', () => {
   document.getElementById('manager-date-from').value = '';
   document.getElementById('manager-date-to').value = '';
@@ -1668,7 +1899,7 @@ function normalisePlate(plate) {
   return String(plate).toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
-async function loadHistoryVehicleOptions() {
+async function loadHistoryVehicleOptions(selectedVehicleId = null) {
   const searchPanel = document.getElementById('history-search-panel');
   // Mechanics and managers can review history for every vehicle.
   if (['mechanic', 'manager'].includes(loggedInAccount?.role)) {
@@ -1692,6 +1923,10 @@ async function loadHistoryVehicleOptions() {
       return;
     }
     historyVehicles = data.vehicles || [];
+    const selectedVehicle = historyVehicles.find((vehicle) => String(vehicle.id) === String(selectedVehicleId));
+    if (selectedVehicle) {
+      document.getElementById('history-plate-search').value = selectedVehicle.plate;
+    }
     // Re-apply any search still in the box (e.g. when returning to this view).
     filterHistoryVehicles();
     return;
@@ -1706,6 +1941,11 @@ async function loadHistoryVehicleOptions() {
   }
   const select = document.getElementById('history-vehicle-select');
   if (select.value) loadHistory(select.value);
+}
+
+function openManagerVehicleHistory(vehicleId) {
+  managerHistoryVehicleId = vehicleId;
+  document.getElementById('history-nav-button').click();
 }
 
 // Fill the Vehicle History selector with the available vehicles.

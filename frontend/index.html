@@ -480,6 +480,37 @@
           </div>
         </div>
 
+        <section class="account-management mechanic-workload" aria-labelledby="mechanic-workload-title">
+          <div class="account-management-heading">
+            <h3 id="mechanic-workload-title">Mechanic Workload Overview</h3>
+            <p>All-time completed jobs and checklist metrics from recorded mechanic job entries.</p>
+          </div>
+          <div id="manager-mechanic-workload" aria-live="polite">Loading mechanic workload...</div>
+        </section>
+
+        <section class="overdue-jobs" aria-labelledby="overdue-jobs-title">
+          <h3 id="overdue-jobs-title">Overdue Scheduled Jobs</h3>
+          <div id="manager-overdue-jobs" aria-live="polite">Loading overdue jobs...</div>
+        </section>
+
+        <section class="account-management manager-booking-management" aria-labelledby="manager-booking-management-title">
+          <div class="account-management-heading">
+            <h3 id="manager-booking-management-title">Booking Management</h3>
+            <p>View bookings across the workshop. Booking details are read-only.</p>
+          </div>
+          <div class="dashboard-filter">
+            <label for="manager-booking-status-filter">Filter by status</label>
+            <select id="manager-booking-status-filter">
+              <option value="">All non-completed bookings</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="denied">Denied</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div id="manager-bookings-list" aria-live="polite">Loading bookings...</div>
+        </section>
+
         <section class="account-management" aria-labelledby="account-management-title">
           <div class="account-management-heading">
             <div>
@@ -551,8 +582,20 @@
           </div>
         </section>
 
-        <h3>Completed Jobs</h3>
-        <div id="manager-jobs-list"></div>
+        <section class="account-management repeat-analysis" aria-labelledby="repeat-analysis-title">
+          <div class="account-management-heading">
+            <h3 id="repeat-analysis-title">Repeat Fault &amp; Repair Analysis</h3>
+            <p>Repeat repairs are based on completed bookings. Repeated diagnostic descriptions are matching current entries, not confirmed recurring faults.</p>
+          </div>
+          <div id="manager-repeat-analysis" aria-live="polite">Loading repeat repair analysis...</div>
+        </section>
+
+        <section class="account-management" aria-labelledby="manager-completed-jobs-title">
+          <div class="account-management-heading">
+            <h3 id="manager-completed-jobs-title">Completed Jobs</h3>
+          </div>
+          <div id="manager-jobs-list"></div>
+        </section>
       </div>
     </section>
   </main>
