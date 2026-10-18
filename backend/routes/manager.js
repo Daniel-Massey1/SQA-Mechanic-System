@@ -223,6 +223,71 @@ function getOverdueBookings(db, now = new Date()) {
     .map(({ booking }) => booking);
 }
 
+function getRepeatRepairAnalysis(db) {
+  const repairRows = db.prepare(
+    `SELECT vehicles.id AS vehicle_id, vehicles.plate, vehicles.make, vehicles.model,
+            bookings.service_type, COUNT(*) AS completed_booking_count
+     FROM bookings
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     WHERE bookings.status = 'completed'
+     GROUP BY vehicles.id, bookings.service_type
+     ORDER BY vehicles.plate COLLATE NOCASE, bookings.service_type`
+  ).all();
+  const repairsByVehicle = new Map();
+  repairRows.forEach((row) => {
+    if (!repairsByVehicle.has(row.vehicle_id)) {
+      repairsByVehicle.set(row.vehicle_id, {
+        vehicleId: row.vehicle_id,
+        plate: row.plate,
+        make: row.make,
+        model: row.model,
+        completedBookingCount: 0,
+        serviceTypeCounts: [],
+      });
+    }
+    const vehicle = repairsByVehicle.get(row.vehicle_id);
+    vehicle.completedBookingCount += row.completed_booking_count;
+    vehicle.serviceTypeCounts.push({
+      serviceType: row.service_type,
+      completedBookingCount: row.completed_booking_count,
+    });
+  });
+  const repeatRepairs = [...repairsByVehicle.values()]
+    .filter((vehicle) => vehicle.completedBookingCount >= 2);
+
+  const repeatedDiagnosticDescriptions = db.prepare(
+    `WITH current_entries AS (
+       SELECT diagnostic_entries.id, diagnostic_entries.vehicle_id, diagnostic_entries.fault_description,
+              COALESCE(diagnostic_entries.supersedes_entry_id, diagnostic_entries.id) AS root_entry_id
+       FROM diagnostic_entries
+       WHERE NOT EXISTS (
+         SELECT 1
+         FROM diagnostic_entries AS newer
+         WHERE COALESCE(newer.supersedes_entry_id, newer.id)
+                 = COALESCE(diagnostic_entries.supersedes_entry_id, diagnostic_entries.id)
+           AND newer.id > diagnostic_entries.id
+       )
+     )
+     SELECT vehicles.id AS vehicle_id, vehicles.plate, vehicles.make, vehicles.model,
+            MIN(current_entries.fault_description) AS description,
+            COUNT(*) AS entry_count
+     FROM current_entries
+     JOIN vehicles ON vehicles.id = current_entries.vehicle_id
+     GROUP BY vehicles.id, LOWER(TRIM(current_entries.fault_description))
+     HAVING COUNT(*) >= 2
+     ORDER BY vehicles.plate COLLATE NOCASE, LOWER(TRIM(current_entries.fault_description))`
+  ).all();
+
+  return {
+    repeatRepairSummary: {
+      vehicleCount: repeatRepairs.length,
+      completedBookingCount: repeatRepairs.reduce((total, vehicle) => total + vehicle.completedBookingCount, 0),
+    },
+    repeatRepairs,
+    repeatedDiagnosticDescriptions,
+  };
+}
+
 // Completed jobs in the range, optionally for one mechanic, newest first.
 function getCompletedJobs(db, range, mechanic) {
   return db.prepare(
@@ -302,6 +367,10 @@ router.get('/dashboard', (req, res) => {
       averageChecklistCompletionPercent,
     },
   });
+});
+
+router.get('/repeat-analysis', (req, res) => {
+  return res.json(getRepeatRepairAnalysis(getDb()));
 });
 
 // Completed jobs for the dashboard's job list, using the same filters as the cards.

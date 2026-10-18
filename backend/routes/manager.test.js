@@ -53,3 +53,82 @@ test('only managers can view overdue jobs on the manager dashboard', async () =>
   assert.equal(anonymous.status, 401);
   assert.equal(customer.status, 403);
 });
+
+test('repeat analysis returns empty results when no repeats exist and protects the endpoint', async () => {
+  const db = getDb();
+  const completed = db.prepare("SELECT id, status FROM bookings WHERE status = 'completed'").all();
+  const hideCompleted = db.prepare("UPDATE bookings SET status = 'denied' WHERE id = ?");
+  const restoreStatus = db.prepare('UPDATE bookings SET status = ? WHERE id = ?');
+  completed.forEach(({ id }) => hideCompleted.run(id));
+
+  try {
+    const manager = await api('GET', '/api/manager/repeat-analysis', { as: 'manager1' });
+    const anonymous = await api('GET', '/api/manager/repeat-analysis');
+    const customer = await api('GET', '/api/manager/repeat-analysis', { as: 'customer1' });
+    const mechanic = await api('GET', '/api/manager/repeat-analysis', { as: 'mechanic1' });
+
+    assert.equal(manager.status, 200);
+    assert.deepEqual(manager.body.repeatRepairs, []);
+    assert.deepEqual(manager.body.repeatedDiagnosticDescriptions, []);
+    assert.deepEqual(manager.body.repeatRepairSummary, { vehicleCount: 0, completedBookingCount: 0 });
+    assert.equal(anonymous.status, 401);
+    assert.equal(customer.status, 403);
+    assert.equal(mechanic.status, 403);
+  } finally {
+    completed.forEach(({ id, status }) => restoreStatus.run(status, id));
+  }
+});
+
+test('repeat analysis counts completed bookings per vehicle and by service type only', async () => {
+  const db = getDb();
+  const vehicleId = Number(db.prepare('SELECT id FROM vehicles WHERE plate = ?').get('ABC123').id);
+  const otherVehicleId = Number(db.prepare('SELECT id FROM vehicles WHERE plate = ?').get('XYZ789').id);
+  const existingCompleted = db.prepare(
+    "SELECT service_type, COUNT(*) AS count FROM bookings WHERE vehicle_id = ? AND status = 'completed' GROUP BY service_type"
+  ).all(vehicleId);
+  const existingByService = Object.fromEntries(existingCompleted.map((row) => [row.service_type, row.count]));
+  const existingCount = existingCompleted.reduce((total, row) => total + row.count, 0);
+  insertBooking(slotString(10, 9), { status: 'completed' });
+  const repeatedSecond = Number(insertBooking(slotString(11, 10), { status: 'completed' }));
+  const singleId = Number(insertBooking(slotString(12, 11), { status: 'completed', bookedBy: 'customer2' }));
+  const otherStatuses = ['pending', 'confirmed', 'denied', 'cancelled']
+    .map((status, index) => Number(insertBooking(slotString(13 + index, 12), { status, bookedBy: 'customer2' })));
+  db.prepare("UPDATE bookings SET service_type = 'full_service' WHERE id = ?").run(repeatedSecond);
+
+  const { status, body } = await api('GET', '/api/manager/repeat-analysis', { as: 'manager1' });
+
+  assert.equal(status, 200);
+  const repeated = body.repeatRepairs.find((vehicle) => vehicle.vehicleId === vehicleId);
+  assert.ok(repeated);
+  assert.equal(repeated.completedBookingCount, existingCount + 2);
+  assert.deepEqual(repeated.serviceTypeCounts, [
+    { serviceType: 'basic_service', completedBookingCount: (existingByService.basic_service || 0) + 1 },
+    { serviceType: 'full_service', completedBookingCount: 1 },
+  ]);
+  assert.equal(body.repeatRepairs.some((vehicle) => vehicle.vehicleId === otherVehicleId), false);
+  assert.equal(db.prepare('SELECT vehicle_id FROM bookings WHERE id = ?').get(singleId).vehicle_id, otherVehicleId);
+  assert.equal(otherStatuses.every((id) => db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status !== 'completed'), true);
+});
+
+test('repeat analysis groups current diagnostic descriptions and excludes superseded versions', async () => {
+  const db = getDb();
+  const vehicleId = Number(db.prepare('SELECT id FROM vehicles WHERE plate = ?').get('ABC123').id);
+  const addEntry = db.prepare(
+    `INSERT INTO diagnostic_entries (vehicle_id, fault_description, severity, status)
+     VALUES (?, ?, 'medium', 'fixed')`
+  );
+  const oldEntryId = Number(addEntry.run(vehicleId, ' Brake noise ').lastInsertRowid);
+  db.prepare(
+    `INSERT INTO diagnostic_entries (vehicle_id, fault_description, severity, status, supersedes_entry_id)
+     VALUES (?, '  Brake noise  ', 'high', 'flagged_for_next_visit', ?)`
+  ).run(vehicleId, oldEntryId);
+  addEntry.run(vehicleId, 'brake noise');
+
+  const { status, body } = await api('GET', '/api/manager/repeat-analysis', { as: 'manager1' });
+
+  assert.equal(status, 200);
+  const repeatedDescription = body.repeatedDiagnosticDescriptions.find((entry) => entry.vehicle_id === vehicleId);
+  assert.ok(repeatedDescription);
+  assert.equal(repeatedDescription.entry_count, 2);
+  assert.equal(repeatedDescription.description.trim().toLowerCase(), 'brake noise');
+});
