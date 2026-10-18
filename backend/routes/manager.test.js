@@ -132,3 +132,68 @@ test('repeat analysis groups current diagnostic descriptions and excludes supers
   assert.equal(repeatedDescription.entry_count, 2);
   assert.equal(repeatedDescription.description.trim().toLowerCase(), 'brake noise');
 });
+
+test('mechanic workload counts completed jobs and calculates checklist metrics from recorded values', async () => {
+  const db = getDb();
+  const mechanicName = 'workload-test-mechanic';
+  const insertJob = db.prepare(
+    `INSERT INTO jobs (booking_id, mechanic_name, checklist_compliant, completion_percent)
+     VALUES (?, ?, ?, ?)`
+  );
+  const unavailableMetricsBookingId = insertBooking(slotString(19, 8), { status: 'completed' });
+  const compliantBookingId = insertBooking(slotString(20, 9), { status: 'completed' });
+  const incompleteBookingId = insertBooking(slotString(21, 10), { status: 'completed' });
+  const missingChecklistBookingId = insertBooking(slotString(22, 11), { status: 'completed' });
+  const nonCompletedBookingIds = ['pending', 'confirmed', 'denied', 'cancelled']
+    .map((status, index) => insertBooking(slotString(23 + index, 12), { status }));
+  insertJob.run(unavailableMetricsBookingId, 'workload-no-checklist-data', null, 75);
+  insertJob.run(compliantBookingId, mechanicName, 1, 100);
+  insertJob.run(incompleteBookingId, mechanicName, 0, 50);
+  insertJob.run(missingChecklistBookingId, mechanicName, null, 60);
+  nonCompletedBookingIds.forEach((bookingId) => insertJob.run(bookingId, mechanicName, 1, 100));
+  insertBooking(slotString(27, 9), { status: 'completed' });
+  insertJob.run(insertBooking(slotString(28, 9), { status: 'completed' }), '', 1, 100);
+
+  const { status, body } = await api('GET', '/api/manager/mechanic-workload', { as: 'manager1' });
+
+  assert.equal(status, 200);
+  const workload = body.mechanics.find((mechanic) => mechanic.mechanicName === mechanicName);
+  assert.ok(workload);
+  assert.equal(workload.completedJobCount, 3);
+  assert.deepEqual(workload.checklistMetrics, {
+    evaluatedJobCount: 2,
+    compliantJobCount: 1,
+    compliancePercent: 50,
+    completionPercentJobCount: 3,
+    averageCompletionPercent: 70,
+  });
+  const unavailableMetrics = body.mechanics.find((mechanic) => mechanic.mechanicName === 'workload-no-checklist-data');
+  assert.ok(unavailableMetrics);
+  assert.equal(unavailableMetrics.checklistMetrics.compliancePercent, null);
+  assert.equal(unavailableMetrics.checklistMetrics.averageCompletionPercent, 75);
+  assert.ok(body.unassignedCompletedBookingCount >= 2);
+});
+
+test('mechanic workload handles empty data and restricts access to managers', async () => {
+  const db = getDb();
+  const completed = db.prepare("SELECT id, status FROM bookings WHERE status = 'completed'").all();
+  const hideCompleted = db.prepare("UPDATE bookings SET status = 'denied' WHERE id = ?");
+  const restoreStatus = db.prepare('UPDATE bookings SET status = ? WHERE id = ?');
+  completed.forEach(({ id }) => hideCompleted.run(id));
+
+  try {
+    const manager = await api('GET', '/api/manager/mechanic-workload', { as: 'manager1' });
+    const anonymous = await api('GET', '/api/manager/mechanic-workload');
+    const customer = await api('GET', '/api/manager/mechanic-workload', { as: 'customer1' });
+    const mechanic = await api('GET', '/api/manager/mechanic-workload', { as: 'mechanic1' });
+
+    assert.equal(manager.status, 200);
+    assert.deepEqual(manager.body.mechanics, []);
+    assert.equal(manager.body.unassignedCompletedBookingCount, 0);
+    assert.equal(anonymous.status, 401);
+    assert.equal(customer.status, 403);
+    assert.equal(mechanic.status, 403);
+  } finally {
+    completed.forEach(({ id, status }) => restoreStatus.run(status, id));
+  }
+});

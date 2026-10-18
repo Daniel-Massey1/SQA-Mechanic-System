@@ -1372,6 +1372,54 @@ async function loadManagerRepeatAnalysis() {
   }
 }
 
+async function loadManagerMechanicWorkload() {
+  const container = document.getElementById('manager-mechanic-workload');
+  container.textContent = 'Loading mechanic workload...';
+
+  try {
+    const response = await fetch(`${API_BASE}/manager/mechanic-workload`, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      container.textContent = data.error || 'Unable to load mechanic workload.';
+      return;
+    }
+
+    container.replaceChildren();
+    if (data.unassignedCompletedBookingCount > 0) {
+      const unassigned = document.createElement('p');
+      unassigned.textContent = `${data.unassignedCompletedBookingCount} completed booking${data.unassignedCompletedBookingCount === 1 ? ' has' : 's have'} no mechanic assignment and are not included in mechanic totals.`;
+      container.appendChild(unassigned);
+    }
+    if (data.mechanics.length === 0) {
+      const empty = document.createElement('p');
+      empty.textContent = 'No completed jobs with mechanic assignments are available.';
+      container.appendChild(empty);
+      return;
+    }
+
+    data.mechanics.forEach((mechanic) => {
+      const card = document.createElement('div');
+      card.className = 'booking-card';
+      const metrics = mechanic.checklistMetrics;
+      const compliance = metrics.compliancePercent === null
+        ? 'Unavailable (no recorded checklist evaluations)'
+        : `${metrics.compliancePercent}% (${metrics.compliantJobCount}/${metrics.evaluatedJobCount} evaluated jobs)`;
+      const averageCompletion = metrics.averageCompletionPercent === null
+        ? 'Unavailable (no recorded completion percentages)'
+        : `${metrics.averageCompletionPercent}% (${metrics.completionPercentJobCount} recorded jobs)`;
+      card.innerHTML = `
+        <strong>${escapeHTML(mechanic.mechanicName)}</strong><br />
+        Completed jobs: ${escapeHTML(mechanic.completedJobCount)}<br />
+        Checklist compliance: ${escapeHTML(compliance)}<br />
+        Average checklist completion: ${escapeHTML(averageCompletion)}
+      `;
+      container.appendChild(card);
+    });
+  } catch {
+    container.textContent = 'Could not reach the server. Please try again.';
+  }
+}
+
 async function loadManagerAccounts() {
   const container = document.getElementById('manager-account-list');
   container.textContent = 'Loading accounts...';
@@ -1653,6 +1701,7 @@ async function loadManagerPortal() {
   loadManagerChecklists();
   loadManagerBookings();
   loadManagerRepeatAnalysis();
+  loadManagerMechanicWorkload();
   const filterSelect = document.getElementById('manager-mechanic-filter');
   const fromInput = document.getElementById('manager-date-from');
   const toInput = document.getElementById('manager-date-to');

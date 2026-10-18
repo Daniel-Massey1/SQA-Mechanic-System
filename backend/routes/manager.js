@@ -373,6 +373,57 @@ router.get('/repeat-analysis', (req, res) => {
   return res.json(getRepeatRepairAnalysis(getDb()));
 });
 
+router.get('/mechanic-workload', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(
+    `SELECT jobs.mechanic_name,
+            COUNT(*) AS completed_job_count,
+            SUM(CASE WHEN jobs.checklist_compliant IS NOT NULL THEN 1 ELSE 0 END) AS checklist_evaluated_job_count,
+            SUM(CASE WHEN jobs.checklist_compliant = 1 THEN 1 ELSE 0 END) AS compliant_job_count,
+            SUM(CASE WHEN jobs.completion_percent BETWEEN 0 AND 100 THEN 1 ELSE 0 END) AS completion_percent_job_count,
+            AVG(CASE WHEN jobs.completion_percent BETWEEN 0 AND 100 THEN jobs.completion_percent END) AS average_completion_percent
+     FROM jobs
+     JOIN bookings ON bookings.id = jobs.booking_id
+     WHERE bookings.status = 'completed'
+       AND jobs.mechanic_name IS NOT NULL
+       AND TRIM(jobs.mechanic_name) != ''
+     GROUP BY jobs.mechanic_name
+     ORDER BY jobs.mechanic_name COLLATE NOCASE`
+  ).all();
+  const unassignedCompletedBookingCount = db.prepare(
+    `SELECT COUNT(*) AS count
+     FROM bookings
+     WHERE bookings.status = 'completed'
+       AND NOT EXISTS (
+         SELECT 1 FROM jobs
+         WHERE jobs.booking_id = bookings.id
+           AND jobs.mechanic_name IS NOT NULL
+           AND TRIM(jobs.mechanic_name) != ''
+       )`
+  ).get().count;
+
+  const mechanics = rows.map((row) => {
+    const checklistEvaluatedJobCount = row.checklist_evaluated_job_count;
+    return {
+      mechanicName: row.mechanic_name,
+      completedJobCount: row.completed_job_count,
+      checklistMetrics: {
+        evaluatedJobCount: checklistEvaluatedJobCount,
+        compliantJobCount: row.compliant_job_count,
+        compliancePercent: checklistEvaluatedJobCount > 0
+          ? Math.round((row.compliant_job_count / checklistEvaluatedJobCount) * 100)
+          : null,
+        completionPercentJobCount: row.completion_percent_job_count,
+        averageCompletionPercent: row.average_completion_percent === null
+          ? null
+          : Math.round(row.average_completion_percent * 10) / 10,
+      },
+    };
+  });
+
+  return res.json({ mechanics, unassignedCompletedBookingCount });
+});
+
 // Completed jobs for the dashboard's job list, using the same filters as the cards.
 router.get('/jobs', (req, res) => {
   const range = resolveDateRange(req.query);
