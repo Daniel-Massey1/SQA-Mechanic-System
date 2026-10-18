@@ -1215,6 +1215,83 @@ function formatPercent(value) {
   return value === null || value === undefined ? 'N/A' : `${value}%`;
 }
 
+let managerBookings = [];
+let managerBookingsState = 'loading';
+let managerBookingsError = '';
+
+function renderManagerBookings() {
+  const container = document.getElementById('manager-bookings-list');
+  if (managerBookingsState === 'loading') {
+    container.textContent = 'Loading bookings...';
+    return;
+  }
+  if (managerBookingsState === 'error') {
+    container.textContent = managerBookingsError;
+    return;
+  }
+
+  const selectedStatus = document.getElementById('manager-booking-status-filter').value;
+  const bookings = selectedStatus
+    ? managerBookings.filter((booking) => booking.status === selectedStatus)
+    : managerBookings;
+  container.replaceChildren();
+  if (bookings.length === 0) {
+    container.textContent = selectedStatus ? 'No bookings match this status.' : 'No bookings found.';
+    return;
+  }
+
+  bookings.forEach((booking) => {
+    const card = document.createElement('div');
+    card.className = 'booking-card';
+    const reference = booking.confirmation_ref || booking.id;
+    card.innerHTML = `
+      <strong>${escapeHTML(booking.plate)} - ${escapeHTML(booking.make)} ${escapeHTML(booking.model)}</strong><br />
+      Ref: ${escapeHTML(reference)}<br />
+      ${escapeHTML(booking.service_type.replace('_', ' '))} on ${escapeHTML(new Date(booking.slot_start.replace(' ', 'T')).toLocaleString())}
+      <span class="badge badge-${escapeHTML(booking.status)}">${escapeHTML(booking.status)}</span>
+    `;
+
+    const detailsButton = document.createElement('button');
+    detailsButton.type = 'button';
+    detailsButton.className = 'details-btn';
+    detailsButton.textContent = 'View Details';
+    detailsButton.addEventListener('click', () => showBookingDetails(booking));
+    card.appendChild(detailsButton);
+    container.appendChild(card);
+  });
+}
+
+async function loadManagerBookings() {
+  managerBookingsState = 'loading';
+  managerBookingsError = '';
+  renderManagerBookings();
+
+  try {
+    const response = await fetch(`${API_BASE}/bookings/all`, { headers: requestHeaders() });
+    const data = await response.json();
+    if (!response.ok) {
+      managerBookingsState = 'error';
+      managerBookingsError = data.error || 'Unable to load bookings.';
+      renderManagerBookings();
+      return;
+    }
+    if (!Array.isArray(data.bookings)) {
+      managerBookingsState = 'error';
+      managerBookingsError = 'Unable to load bookings.';
+      renderManagerBookings();
+      return;
+    }
+
+    managerBookings = data.bookings;
+    managerBookingsState = 'ready';
+    renderManagerBookings();
+  } catch {
+    managerBookingsState = 'error';
+    managerBookingsError = 'Could not reach the server. Please try again.';
+    renderManagerBookings();
+  }
+}
+
 async function loadManagerAccounts() {
   const container = document.getElementById('manager-account-list');
   container.textContent = 'Loading accounts...';
@@ -1494,6 +1571,7 @@ document.getElementById('checklist-editor-form').addEventListener('submit', asyn
 async function loadManagerPortal() {
   loadManagerAccounts();
   loadManagerChecklists();
+  loadManagerBookings();
   const filterSelect = document.getElementById('manager-mechanic-filter');
   const fromInput = document.getElementById('manager-date-from');
   const toInput = document.getElementById('manager-date-to');
@@ -1598,6 +1676,7 @@ async function loadManagerPortal() {
 document.getElementById('manager-mechanic-filter').addEventListener('change', loadManagerPortal);
 document.getElementById('manager-date-from').addEventListener('change', loadManagerPortal);
 document.getElementById('manager-date-to').addEventListener('change', loadManagerPortal);
+document.getElementById('manager-booking-status-filter').addEventListener('change', renderManagerBookings);
 document.getElementById('manager-date-reset').addEventListener('click', () => {
   document.getElementById('manager-date-from').value = '';
   document.getElementById('manager-date-to').value = '';

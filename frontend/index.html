@@ -485,6 +485,24 @@
           <div id="manager-overdue-jobs" aria-live="polite">Loading overdue jobs...</div>
         </section>
 
+        <section class="account-management manager-booking-management" aria-labelledby="manager-booking-management-title">
+          <div class="account-management-heading">
+            <h3 id="manager-booking-management-title">Booking Management</h3>
+            <p>View bookings across the workshop. Booking details are read-only.</p>
+          </div>
+          <div class="dashboard-filter">
+            <label for="manager-booking-status-filter">Filter by status</label>
+            <select id="manager-booking-status-filter">
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="denied">Denied</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div id="manager-bookings-list" aria-live="polite">Loading bookings...</div>
+        </section>
+
         <section class="account-management" aria-labelledby="account-management-title">
           <div class="account-management-heading">
             <div>
