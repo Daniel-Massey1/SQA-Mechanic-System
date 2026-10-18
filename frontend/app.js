@@ -1233,10 +1233,10 @@ function renderManagerBookings() {
   const selectedStatus = document.getElementById('manager-booking-status-filter').value;
   const bookings = selectedStatus
     ? managerBookings.filter((booking) => booking.status === selectedStatus)
-    : managerBookings;
+    : managerBookings.filter((booking) => booking.status !== 'completed');
   container.replaceChildren();
   if (bookings.length === 0) {
-    container.textContent = selectedStatus ? 'No bookings match this status.' : 'No bookings found.';
+    container.textContent = selectedStatus ? 'No bookings match this status.' : 'No non-completed bookings found.';
     return;
   }
 
