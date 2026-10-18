@@ -1500,7 +1500,9 @@ async function loadManagerPortal() {
   const rangeSummary = document.getElementById('manager-range-summary');
   const selectedMechanic = filterSelect.value;
   const jobsContainer = document.getElementById('manager-jobs-list');
+  const overdueContainer = document.getElementById('manager-overdue-jobs');
   jobsContainer.textContent = 'Loading...';
+  overdueContainer.textContent = 'Loading overdue jobs...';
 
   try {
     // Empty dates let the server apply its default (the last 30 days).
@@ -1523,6 +1525,7 @@ async function loadManagerPortal() {
       ['stat-total-completed', 'stat-incomplete', 'stat-avg-time', 'stat-acceptance', 'stat-compliance', 'stat-avg-completion']
         .forEach((id) => { document.getElementById(id).textContent = '-'; });
       jobsContainer.textContent = '';
+      overdueContainer.textContent = '';
       return;
     }
 
@@ -1550,6 +1553,24 @@ async function loadManagerPortal() {
     document.getElementById('stat-compliance').textContent = formatPercent(totals.checklistCompliancePercent);
     document.getElementById('stat-avg-completion').textContent = formatPercent(totals.averageChecklistCompletionPercent);
 
+    overdueContainer.innerHTML = '';
+    if (dashboardData.overdueBookings.length === 0) {
+      overdueContainer.textContent = 'No overdue scheduled jobs.';
+    } else {
+      dashboardData.overdueBookings.forEach((booking) => {
+        const card = document.createElement('div');
+        card.className = 'booking-card overdue-job-card';
+        card.innerHTML = `
+          <strong>${escapeHTML(booking.plate)} - ${escapeHTML(booking.make)} ${escapeHTML(booking.model)}</strong><br />
+          Customer: ${escapeHTML(booking.customer_name)}<br />
+          Service: ${escapeHTML(booking.service_type.replace('_', ' '))}<br />
+          Scheduled: ${escapeHTML(new Date(booking.slot_start.replace(' ', 'T')).toLocaleString())}
+          <span class="badge badge-pending">Overdue</span>
+        `;
+        overdueContainer.appendChild(card);
+      });
+    }
+
     jobsContainer.innerHTML = '';
     if (jobsData.jobs.length === 0) {
       jobsContainer.textContent = 'No jobs were completed in this date range.';
@@ -1570,6 +1591,7 @@ async function loadManagerPortal() {
     });
   } catch (err) {
     jobsContainer.textContent = 'Could not reach the server. Please try again.';
+    overdueContainer.textContent = 'Could not reach the server. Please try again.';
   }
 }
 

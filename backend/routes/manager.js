@@ -207,6 +207,22 @@ function repairMinutes(slotStart, completedAt) {
   return Math.max(0, Math.round((end - start) / (1000 * 60)));
 }
 
+function getOverdueBookings(db, now = new Date()) {
+  const bookings = db.prepare(
+    `SELECT bookings.*, vehicles.plate, vehicles.make, vehicles.model, customers.name AS customer_name
+     FROM bookings
+     JOIN vehicles ON vehicles.id = bookings.vehicle_id
+     JOIN customers ON customers.id = vehicles.customer_id
+     WHERE bookings.status = 'confirmed'`
+  ).all();
+
+  return bookings
+    .map((booking) => ({ booking, slotStart: workshopLocalToUtc(booking.slot_start) }))
+    .filter(({ slotStart }) => slotStart && slotStart < now)
+    .sort((left, right) => left.slotStart - right.slotStart)
+    .map(({ booking }) => booking);
+}
+
 // Completed jobs in the range, optionally for one mechanic, newest first.
 function getCompletedJobs(db, range, mechanic) {
   return db.prepare(
@@ -276,6 +292,7 @@ router.get('/dashboard', (req, res) => {
     mechanics: getKnownMechanics(db),
     selectedMechanic: mechanic,
     range: { from: range.from, to: range.to },
+    overdueBookings: getOverdueBookings(db),
     totals: {
       totalCompletedJobs,
       incompleteChecklistCount: totalCompletedJobs - compliantJobs,
